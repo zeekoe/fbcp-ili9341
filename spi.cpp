@@ -123,7 +123,7 @@ void RunSPITask(SPITask *task)
   // An SPI transfer to the display always starts with one control (command) byte, followed by N data bytes.
   CLEAR_GPIO(GPIO_TFT_DATA_CONTROL);
 
-  WRITE_FIFO(0x00); // 16 bit
+  WRITE_FIFO(0x00);
   WRITE_FIFO(task->cmd);
 
   while(!(spi->cs & (BCM2835_SPI0_CS_DONE))) /*nop*/;
@@ -232,6 +232,7 @@ void *spi_thread(void *unused)
 
 int InitSPI()
 {
+
   // Memory map GPIO and SPI peripherals for direct access
   mem_fd = open("/dev/mem", O_RDWR|O_SYNC);
   if (mem_fd < 0) FATAL_ERROR("can't open /dev/mem (run as sudo)");
@@ -249,33 +250,99 @@ int InitSPI()
   // Estimate how many microseconds transferring a single byte over the SPI bus takes?
   spiUsecsPerByte = 1000000.0 * 8.0/*bits/byte*/ * SPI_BUS_CLOCK_DIVISOR / maxBcmCoreTurboSpeed;
 
-  printf("xyz BCM core speed: current: %uhz, max turbo: %uhz. SPI CDIV: %d, SPI max frequency: %.0fhz\n", currentBcmCoreSpeed, maxBcmCoreTurboSpeed, SPI_BUS_CLOCK_DIVISOR, (double)maxBcmCoreTurboSpeed / SPI_BUS_CLOCK_DIVISOR);
+  printf("XYZ BCM core speed: current: %uhz, max turbo: %uhz. SPI CDIV: %d, SPI max frequency: %.0fhz\n", currentBcmCoreSpeed, maxBcmCoreTurboSpeed, SPI_BUS_CLOCK_DIVISOR, (double)maxBcmCoreTurboSpeed / SPI_BUS_CLOCK_DIVISOR);
 
+#if !defined(KERNEL_MODULE_CLIENT) || defined(KERNEL_MODULE_CLIENT_DRIVES)
   // By default all GPIO pins are in input mode (0x00), initialize them for SPI and GPIO writes
+#ifdef GPIO_TFT_DATA_CONTROL
   SET_GPIO_MODE(GPIO_TFT_DATA_CONTROL, 0x01); // Data/Control pin to output (0x01)
+#endif
   // The Pirate Audio hat ST7789 based display has Data/Control on the MISO pin, so only initialize the pin as MISO if the
   // Data/Control pin does not use it.
+#if !defined(GPIO_TFT_DATA_CONTROL) || GPIO_TFT_DATA_CONTROL != GPIO_SPI0_MISO
   SET_GPIO_MODE(GPIO_SPI0_MISO, 0x04);
+#endif
   SET_GPIO_MODE(GPIO_SPI0_MOSI, 0x04);
   SET_GPIO_MODE(GPIO_SPI0_CLK, 0x04);
 
+#ifdef DISPLAY_NEEDS_CHIP_SELECT_SIGNAL
+  // The Adafruit 1.65" 240x240 ST7789 based display is unique compared to others that it does want to see the Chip Select line go
+  // low and high to start a new command. For that display we let hardware SPI toggle the CS line, and actually run TA<-0 and TA<-1
+  // transitions to let the CS line live. For most other displays, we just set CS line always enabled for the display throughout
+  // fbcp-ili9341 lifetime, which is a tiny bit faster.
+  SET_GPIO_MODE(GPIO_SPI0_CE0, 0x04);
+#ifdef DISPLAY_USES_CS1
+  SET_GPIO_MODE(GPIO_SPI0_CE1, 0x04);
+#endif
+#else
   // Set the SPI 0 pin explicitly to output, and enable chip select on the line by setting it to low.
   // fbcp-ili9341 assumes exclusive access to the SPI0 bus, and exclusive presence of only one device on the bus,
   // which is (permanently) activated here.
   SET_GPIO_MODE(GPIO_SPI0_CE0, 0x01);
   CLEAR_GPIO(GPIO_SPI0_CE0);
+#ifdef DISPLAY_USES_CS1
+  SET_GPIO_MODE(GPIO_SPI0_CE1, 0x01);
+#endif
+#endif
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS; // Initialize the Control and Status register to defaults: CS=0 (Chip Select), CPHA=0 (Clock Phase), CPOL=0 (Clock Polarity), CSPOL=0 (Chip Select Polarity), TA=0 (Transfer not active), and reset TX and RX queues.
   spi->clk = SPI_BUS_CLOCK_DIVISOR; // Clock Divider determines SPI bus speed, resulting speed=256MHz/clk
+#endif
+
+  // Initialize SPI thread task buffer memory
+#ifdef KERNEL_MODULE_CLIENT
+  int driverfd = open("/proc/bcm2835_spi_display_bus", O_RDWR|O_SYNC);
+  if (driverfd < 0) FATAL_ERROR("Could not open SPI ring buffer - kernel driver module not running?");
+  spiTaskMemory = (SharedMemory*)mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED/* | MAP_NORESERVE | MAP_POPULATE | MAP_LOCKED*/, driverfd, 0);
+  close(driverfd);
+  if (spiTaskMemory == MAP_FAILED) FATAL_ERROR("Could not mmap SPI ring buffer!");
+  printf("Got shared memory block %p, ring buffer head %p, ring buffer tail %p, shared memory block phys address: %p\n", (const char *)spiTaskMemory, spiTaskMemory->queueHead, spiTaskMemory->queueTail, spiTaskMemory->sharedMemoryBaseInPhysMemory);
+
+#ifdef USE_DMA_TRANSFERS
+  printf("DMA TX channel: %d, DMA RX channel: %d\n", spiTaskMemory->dmaTxChannel, spiTaskMemory->dmaRxChannel);
+#endif
+
+#else
+
+#ifdef KERNEL_MODULE
+  spiTaskMemory = (SharedMemory*)kmalloc(SHARED_MEMORY_SIZE, GFP_KERNEL | GFP_DMA);
+  // TODO: Ideally we would be able to directly perform the DMA from the SPI ring buffer in 'spiTaskMemory'. However
+  // that pointer is shared to userland, and it is proving troublesome to make it both userland-writable as well as cache-bypassing DMA coherent.
+  // Therefore these two memory areas are separate for now, and we memcpy() from SPI ring buffer to the following intermediate 'dmaSourceMemory'
+  // memory area to perform the DMA transfer. Is there a way to avoid this intermediate buffer? That would improve performance a bit.
+  dmaSourceMemory = (SharedMemory*)dma_alloc_writecombine(0, SHARED_MEMORY_SIZE, &spiTaskMemoryPhysical, GFP_KERNEL);
+  LOG("Allocated DMA memory: mem: %p, phys: %p", spiTaskMemory, (void*)spiTaskMemoryPhysical);
+  memset((void*)spiTaskMemory, 0, SHARED_MEMORY_SIZE);
+#else
+  spiTaskMemory = (SharedMemory*)Malloc(SHARED_MEMORY_SIZE, "spi.cpp shared task memory");
+#endif
+
+  spiTaskMemory->queueHead = spiTaskMemory->queueTail = spiTaskMemory->spiBytesQueued = 0;
+#endif
+
+#ifdef USE_DMA_TRANSFERS
+  InitDMA();
+#endif
 
   // Enable fast 8 clocks per byte transfer mode, instead of slower 9 clocks per byte.
   UNLOCK_FAST_8_CLOCKS_SPI();
 
+#if !defined(KERNEL_MODULE) && (!defined(KERNEL_MODULE_CLIENT) || defined(KERNEL_MODULE_CLIENT_DRIVES))
   printf("Initializing display\n");
   InitSPIDisplay();
 
+#ifdef USE_SPI_THREAD
+  // Create a dedicated thread to feed the SPI bus. While this is fast, it consumes a lot of CPU. It would be best to replace
+  // this thread with a kernel module that processes the created SPI task queue using interrupts. (while juggling the GPIO D/C line as well)
+  printf("Creating SPI task thread\n");
+  int rc = pthread_create(&spiThread, NULL, spi_thread, NULL); // After creating the thread, it is assumed to have ownership of the SPI bus, so no SPI chat on the main thread after this.
+  if (rc != 0) FATAL_ERROR("Failed to create SPI thread!");
+#else
   // We will be running SPI tasks continuously from the main thread, so keep SPI Transfer Active throughout the lifetime of the driver.
   BEGIN_SPI_COMMUNICATION();
+#endif
+
+#endif
 
   LOG("InitSPI done");
   return 0;
@@ -283,7 +350,14 @@ int InitSPI()
 
 void DeinitSPI()
 {
+#ifdef USE_SPI_THREAD
+  pthread_join(spiThread, NULL);
+  spiThread = (pthread_t)0;
+#endif
   DeinitSPIDisplay();
+#ifdef USE_DMA_TRANSFERS
+  DeinitDMA();
+#endif
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS;
 
