@@ -167,9 +167,7 @@ extern volatile bool programRunning;
 
 void ExecuteSPITasks()
 {
-#ifndef USE_DMA_TRANSFERS
   BEGIN_SPI_COMMUNICATION();
-#endif
   {
     while(programRunning && spiTaskMemory->queueTail != spiTaskMemory->queueHead)
     {
@@ -181,9 +179,7 @@ void ExecuteSPITasks()
       }
     }
   }
-#ifndef USE_DMA_TRANSFERS
   END_SPI_COMMUNICATION();
-#endif
 }
 
 #if !defined(KERNEL_MODULE) && defined(USE_SPI_THREAD)
@@ -301,10 +297,6 @@ int InitSPI()
   if (spiTaskMemory == MAP_FAILED) FATAL_ERROR("Could not mmap SPI ring buffer!");
   printf("Got shared memory block %p, ring buffer head %p, ring buffer tail %p, shared memory block phys address: %p\n", (const char *)spiTaskMemory, spiTaskMemory->queueHead, spiTaskMemory->queueTail, spiTaskMemory->sharedMemoryBaseInPhysMemory);
 
-#ifdef USE_DMA_TRANSFERS
-  printf("DMA TX channel: %d, DMA RX channel: %d\n", spiTaskMemory->dmaTxChannel, spiTaskMemory->dmaRxChannel);
-#endif
-
 #else
 
 #ifdef KERNEL_MODULE
@@ -321,10 +313,6 @@ int InitSPI()
 #endif
 
   spiTaskMemory->queueHead = spiTaskMemory->queueTail = spiTaskMemory->spiBytesQueued = 0;
-#endif
-
-#ifdef USE_DMA_TRANSFERS
-  InitDMA();
 #endif
 
   // Enable fast 8 clocks per byte transfer mode, instead of slower 9 clocks per byte.
@@ -358,9 +346,6 @@ void DeinitSPI()
   spiThread = (pthread_t)0;
 #endif
   DeinitSPIDisplay();
-#ifdef USE_DMA_TRANSFERS
-  DeinitDMA();
-#endif
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS;
 

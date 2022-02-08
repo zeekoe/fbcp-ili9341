@@ -23,9 +23,7 @@ extern Span *spans;
 // +1 byte to wait for that FIFO to flush,
 // after which the communication is ready to start pushing pixels. This totals to 8 bytes, or 4 pixels, meaning that if there are 4 unchanged pixels or less between two adjacent dirty
 // spans, it is all the same to just update through those pixels as well to not have to wait to flush the FIFO.
-#if defined(ALL_TASKS_SHOULD_DMA)
-#define SPAN_MERGE_THRESHOLD 320
-#elif defined(DISPLAY_SPI_BUS_IS_16BITS_WIDE)
+#if defined(DISPLAY_SPI_BUS_IS_16BITS_WIDE)
 #define SPAN_MERGE_THRESHOLD 10
 #elif defined(HX8357D)
 #define SPAN_MERGE_THRESHOLD 6

@@ -25,7 +25,6 @@ set(DEFAULT_TO_ARMV6Z OFF)
 set(DEFAULT_TO_SINGLE_CORE_BOARD ON)
 set(DEFAULT_TO_ARMV6Z ON)
 set(WAVESHARE35B_ILI9486 ON)
-set(USE_DMA_TRANSFERS OFF)
 
 
 option(SINGLE_CORE_BOARD "Target a Raspberry Pi with only one hardware core (Pi Zero)" ${DEFAULT_TO_SINGLE_CORE_BOARD})
@@ -150,31 +149,6 @@ endif()
 
 option(KEDEI_V63_MPI3501 "Target KeDei 3.5 inch SPI TFTLCD 480*320 16bit/186bit version 6.3 2018/4/9 display (MPI3501)" OFF)
 
-option(USE_DMA_TRANSFERS "If enabled, fbcp-ili9341 utilizes DMA to transfer data to the display. Otherwise, Polled SPI mode is used to drive communication with the SPI display" ON)
-
-# KeDei does not do DMA well, since after each 32-bit word one needs to refresh the chip select signal, preventing DMA batch operations altogether.
-if (KEDEI_V63_MPI3501)
-	set(USE_DMA_TRANSFERS OFF)
-endif()
-
-if (USE_DMA_TRANSFERS)
-	message(STATUS "USE_DMA_TRANSFERS enabled, this improves performance. Try running CMake with -DUSE_DMA_TRANSFERS=OFF it this causes problems, or try adjusting the DMA channels to use with -DDMA_TX_CHANNEL=<num> -DDMA_RX_CHANNEL=<num>.")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_DMA_TRANSFERS=1")
-else()
-	message(STATUS "USE_DMA_TRANSFERS is disabled, this is not the most efficient mode. Try running CMake with -DUSE_DMA_TRANSFERS=ON to improve performance.")
-endif()
-
-set(DMA_TX_CHANNEL 0 CACHE STRING "Specifies the DMA send channel to use")
-if (DMA_TX_CHANNEL)
-	message(STATUS "DMA_TX_CHANNEL=${DMA_TX_CHANNEL}")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDMA_TX_CHANNEL=${DMA_TX_CHANNEL}")
-endif()
-
-set(DMA_RX_CHANNEL 0 CACHE STRING "Specifies the DMA receive channel to use")
-if (DMA_RX_CHANNEL)
-	message(STATUS "DMA_RX_CHANNEL=${DMA_RX_CHANNEL}")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDMA_RX_CHANNEL=${DMA_RX_CHANNEL}")
-endif()
 
 option(ADAFRUIT_ILI9341_PITFT "Target Adafruit's ILI9341-based PiTFT display" OFF)
 option(FREEPLAYTECH_WAVESHARE32B "Target WaveShare32B ILI9341 display on Freeplaytech's CM3/Zero devices)" OFF)

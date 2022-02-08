@@ -91,13 +91,6 @@
 #define SPI_BYTESPERPIXEL 2
 #endif
 
-#if (DISPLAY_DRAWABLE_WIDTH % 16 == 0) && defined(ALL_TASKS_SHOULD_DMA) &&!defined(USE_SPI_THREAD) && defined(USE_GPU_VSYNC) && !defined(DISPLAY_COLOR_FORMAT_R6X2G6X2B6X2) && !defined(SPI_3WIRE_PROTOCOL)
-// If conditions are suitable, defer moving pixels until the very last moment in dma.cpp when we are about
-// to kick off DMA tasks.
-// TODO: 3-wire SPI displays are not yet compatible with this path. Implement support for this to optimize performance of 3-wire SPI displays on Pi Zero. (Pi 3B does not care that much)
-#define OFFLOAD_PIXEL_COPY_TO_DMA_CPP
-#endif
-
 void ClearScreen(void);
 
 void TurnBacklightOn(void);

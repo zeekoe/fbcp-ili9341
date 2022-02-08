@@ -351,9 +351,9 @@ int main()
     int bytesTransferred = 0;
     Span *head = 0;
 
-#if defined(ALL_TASKS_SHOULD_DMA) && defined(UPDATE_FRAMES_WITHOUT_DIFFING)
+#if false
     NoDiffChangedRectangle(head);
-#elif defined(ALL_TASKS_SHOULD_DMA) && defined(UPDATE_FRAMES_IN_SINGLE_RECTANGULAR_DIFF)
+#elif false
     DiffFramebuffersToSingleChangedRectangle(framebuffer[0], framebuffer[1], head);
 #else
     // Collect all spans in this image
@@ -391,22 +391,14 @@ int main()
     if (!displayOff)
     for(Span *i = head; i; i = i->next)
     {
-#ifdef ALIGN_TASKS_FOR_DMA_TRANSFERS
-      // DMA transfers smaller than 4 bytes are causing trouble, so in order to ensure smooth DMA operation,
-      // make sure each message is at least 4 bytes in size, hence one pixel spans are forbidden:
-      if (i->size == 1)
-      {
-        if (i->endX < DISPLAY_DRAWABLE_WIDTH) { ++i->endX; ++i->lastScanEndX; }
-        else --i->x;
-        ++i->size;
-      }
+#ifdef false
 #endif
       // Update the write cursor if needed
 #ifndef DISPLAY_WRITE_PIXELS_CMD_DOES_NOT_RESET_WRITE_CURSOR
       if (spiY != i->y)
 #endif
       {
-#if defined(MUST_SEND_FULL_CURSOR_WINDOW) || defined(ALIGN_TASKS_FOR_DMA_TRANSFERS)
+#if defined(MUST_SEND_FULL_CURSOR_WINDOW)
         QUEUE_SET_WRITE_WINDOW_TASK(DISPLAY_SET_CURSOR_Y, displayYOffset + i->y, displayYOffset + gpuFrameHeight - 1);
 #else
         QUEUE_MOVE_CURSOR_TASK(DISPLAY_SET_CURSOR_Y, displayYOffset + i->y);
@@ -424,14 +416,7 @@ int main()
       }
       else // Singleline span
       {
-#ifdef ALIGN_TASKS_FOR_DMA_TRANSFERS
-        if (spiX != i->x || spiEndX < i->endX)
-        {
-          QUEUE_SET_WRITE_WINDOW_TASK(DISPLAY_SET_CURSOR_X, displayXOffset + i->x, displayXOffset + gpuFrameWidth - 1);
-          IN_SINGLE_THREADED_MODE_RUN_TASK();
-          spiX = i->x;
-          spiEndX = gpuFrameWidth;
-        }
+#ifdef false
 #else
         if (spiEndX < i->endX) // Need to push the X end window?
         {
@@ -473,15 +458,7 @@ int main()
       uint16_t *scanline = framebuffer[0] + i->y * (gpuFramebufferScanlineStrideBytes>>1);
       uint16_t *prevScanline = framebuffer[1] + i->y * (gpuFramebufferScanlineStrideBytes>>1);
 
-#ifdef OFFLOAD_PIXEL_COPY_TO_DMA_CPP
-      // If running a singlethreaded build without a separate SPI thread, we can offload the whole flow of the pixel data out to the code in the dma.cpp backend,
-      // which does the pixel task handoff out to DMA in inline assembly. This is done mainly to save an extra memcpy() when passing data off from GPU to SPI,
-      // since in singlethreaded mode, snapshotting GPU and sending data to SPI is done sequentially in this main loop.
-      // In multithreaded builds, this approach cannot be used, since after we snapshot a frame, we need to send it off to SPI thread to process, and make a copy
-      // anways to ensure it does not get overwritten.
-      task->fb = (uint8_t*)(scanline + i->x);
-      task->prevFb = (uint8_t*)(prevScanline + i->x);
-      task->width = i->endX - i->x;
+#ifdef false
 #else
       uint16_t *data = (uint16_t*)task->data;
       for(int y = i->y; y < i->endY; ++y, scanline += gpuFramebufferScanlineStrideBytes>>1, prevScanline += gpuFramebufferScanlineStrideBytes>>1)
@@ -489,18 +466,6 @@ int main()
         int endX = (y + 1 == i->endY) ? i->lastScanEndX : i->endX;
         int x = i->x;
 #ifdef DISPLAY_COLOR_FORMAT_R6X2G6X2B6X2
-        // Convert from R5G6B5 to R6X2G6X2B6X2 on the fly
-        while(x < endX)
-        {
-          uint16_t pixel = scanline[x++];
-          uint16_t r = (pixel >> 8) & 0xF8;
-          uint16_t g = (pixel >> 3) & 0xFC;
-          uint16_t b = (pixel << 3) & 0xF8;
-          ((uint8_t*)data)[0] = r | (r >> 5); // On red and blue color channels, need to expand 5 bits to 6 bits. Do that by duplicating the highest bit as lowest bit.
-          ((uint8_t*)data)[1] = g;
-          ((uint8_t*)data)[2] = b | (b >> 5);
-          data = (uint16_t*)((uintptr_t)data + 3);
-        }
 #else
         while(x < endX && (x&1)) *data++ = __builtin_bswap16(scanline[x++]);
         while(x < (endX&~1U))
@@ -520,13 +485,6 @@ int main()
       CommitTask(task);
       IN_SINGLE_THREADED_MODE_RUN_TASK();
     }
-
-#ifdef KERNEL_MODULE_CLIENT
-    // Wake the kernel module up to run tasks. TODO: This might not be best placed here, we could pre-empt
-    // to start running tasks already half-way during task submission above.
-    if (spiTaskMemory->queueHead != spiTaskMemory->queueTail && !(spi->cs & BCM2835_SPI0_CS_TA))
-      spi->cs |= BCM2835_SPI0_CS_TA;
-#endif
 
     // Remember where in the command queue this frame ends, to keep track of the SPI thread's progress over it
     if (bytesTransferred > 0)

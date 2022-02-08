@@ -92,9 +92,6 @@ void DrawStatisticsOverlay(uint16_t *framebuffer)
   DrawText(framebuffer, gpuFrameWidth, gpuFramebufferScanlineStrideBytes, gpuFrameHeight, statsFrameSkipText, strlen(fpsText)*6, 1, RGB565(31,0,0), 0);
 
 #if DISPLAY_DRAWABLE_WIDTH > 130
-#ifdef USE_DMA_TRANSFERS
-  DrawText(framebuffer, gpuFrameWidth, gpuFramebufferScanlineStrideBytes, gpuFrameHeight, dmaChannelsText, 1, 10, RGB565(31, 44, 8), 0);
-#endif
 #ifdef USE_SPI_THREAD
   DrawText(framebuffer, gpuFrameWidth, gpuFramebufferScanlineStrideBytes, gpuFrameHeight, spiUsagePercentageText, 75, 10, spiUsageColor, 0);
 #endif
@@ -178,9 +175,6 @@ void RefreshStatisticsOverlayText()
 
   UpdateStatisticsNumbers();
 
-#ifdef USE_DMA_TRANSFERS
-  sprintf(dmaChannelsText, "DMATx=%d,Rx=%d", dmaTxChannel, dmaRxChannel);
-#endif
 #ifdef KERNEL_MODULE_CLIENT
   spiThreadUtilizationRate = 0; // TODO
   int spiRate = 0;
@@ -281,10 +275,6 @@ void RefreshStatisticsOverlayText()
 
   sprintf(cpuMemoryUsedText, "CPU:%.2f" HINTSUFFIX, totalCpuMemoryAllocated/1024.0/1024.0);
 
-#ifdef USE_DMA_TRANSFERS
-  if (totalGpuMemoryUsed > 0)
-    sprintf(gpuMemoryUsedText, "GPU:%.2f" HINTSUFFIX, totalGpuMemoryUsed/1024.0/1024.0);
-#endif
 }
 #else
 void RefreshStatisticsOverlayText() {}

@@ -66,14 +66,6 @@
 // too much for the display to handle)
 // #define NO_INTERLACING
 
-#if (defined(FREEPLAYTECH_WAVESHARE32B) || (defined(ILI9341) && SPI_BUS_CLOCK_DIVISOR <= 4)) && defined(USE_DMA_TRANSFERS) && !defined(NO_INTERLACING)
-// The Freeplaytech CM3/Zero displays actually only have a visible display resolution of 302x202, instead of
-// 320x240, and this is enough to give them full progressive 320x240x60fps without ever resorting to
-// interlacing. Also, ILI9341 displays running with clock divisor of 4 have enough bandwidth to never need
-// interlacing either.
-#define NO_INTERLACING
-#endif
-
 // If defined, all frames are always rendered as interlaced, and never use progressive rendering.
 // #define ALWAYS_INTERLACING
 
@@ -110,20 +102,6 @@
 // requires that ALL_TASKS_SHOULD_DMA is also enabled.
 // #define UPDATE_FRAMES_WITHOUT_DIFFING
 
-#if defined(SINGLE_CORE_BOARD) && defined(USE_DMA_TRANSFERS) && !defined(SPI_3WIRE_PROTOCOL) // TODO: 3-wire SPI displays are not yet compatible with ALL_TASKS_SHOULD_DMA option.
-// These are prerequisites for good performance on Pi Zero
-#ifndef ALL_TASKS_SHOULD_DMA
-#define ALL_TASKS_SHOULD_DMA
-#endif
-#ifndef NO_INTERLACING
-#define NO_INTERLACING
-#endif
-// This saves a lot of CPU, but if you don't care and your SPI display does not have much bandwidth, try uncommenting this for more performant
-// screen updates
-#ifndef UPDATE_FRAMES_IN_SINGLE_RECTANGULAR_DIFF
-#define UPDATE_FRAMES_IN_SINGLE_RECTANGULAR_DIFF
-#endif
-#endif
 
 // If per-pixel diffing is enabled (neither UPDATE_FRAMES_IN_SINGLE_RECTANGULAR_DIFF or UPDATE_FRAMES_WITHOUT_DIFFING
 // are enabled), the following variable controls whether to lean towards more precise pixel diffing, or faster, but
@@ -131,14 +109,7 @@
 // In most cases it is better to use the coarse method, since the increase in pixel counts is small (~5%-10%),
 // so enabled by default. If your display is very constrained on SPI bus speed, and don't mind increased
 // CPU consumption, comment this out to use the precise algorithm.
-#if !defined(ALL_TASKS_SHOULD_DMA) // At the moment the coarse method is not good at producing long spans, so disable if all tasks should DMA
 #define FAST_BUT_COARSE_PIXEL_DIFF
-#endif
-
-#if defined(ALL_TASKS_SHOULD_DMA)
-// This makes all submitted tasks go through DMA, and not use a hybrid Polled SPI + DMA approach.
-#define ALIGN_TASKS_FOR_DMA_TRANSFERS
-#endif
 
 // If defined, the GPU polling thread will be put to sleep for 1/TARGET_FRAMERATE seconds after receiving
 // each new GPU frame, to wait for the earliest moment that the next frame could arrive.
@@ -192,7 +163,6 @@
 
 // If enabled, build to utilize DMA transfers to communicate with the SPI peripheral. Otherwise polling
 // writes will be performed (possibly with interrupts, if using kernel side driver module)
-// #define USE_DMA_TRANSFERS
 
 // If defined, enables code to manage the backlight.
 // #define BACKLIGHT_CONTROL

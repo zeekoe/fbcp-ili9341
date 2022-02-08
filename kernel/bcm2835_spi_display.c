@@ -196,101 +196,6 @@ uint32_t virt_to_bus_address(volatile void *virtAddress)
 volatile int shuttingDown = 0;
 dma_addr_t spiTaskMemoryPhysical = 0;
 
-#ifdef USE_DMA_TRANSFERS
-
-void DMATest(void);
-
-// Debug code to verify memory->memory streaming of DMA, no SPI peripheral interaction (remove this)
-void DMATest()
-{
-  LOG("Testing DMA transfers");
-
-  dma_addr_t dma_mem_phys = 0;
-  void *dma_mem = dma_alloc_writecombine(0, SHARED_MEMORY_SIZE, &dma_mem_phys, GFP_KERNEL);
-  LOG("Allocated DMA memory: mem: %p, phys: %p", dma_mem, (void*)dma_mem_phys);
-
-  spiTaskMemory = (SharedMemory *)dma_mem;
-  while(!shuttingDown)
-  {
-    msleep(100);
-    static int ctr = 0;
-    uint32_t base = (ctr++ * 34153) % SPI_QUEUE_SIZE;
-    uint32_t size = 65;
-    uint32_t base2 = base + size;
-    if (base2 + size > SPI_QUEUE_SIZE) continue;
-
-    memset((void*)spiTaskMemory->buffer, 0xCB, SPI_QUEUE_SIZE);
-
-    uint8_t *src = (uint8_t *)(spiTaskMemory->buffer + base);
-    src = (uint8_t *)((uintptr_t)src);
-    for(int i = 0; i < size; ++i)
-      src[i] = i;
-
-    uint8_t *dst = (uint8_t *)(spiTaskMemory->buffer + base2);
-    dst = (uint8_t *)((uintptr_t)dst);
-
-#define TO_BUS(ptr) (( ((uint32_t)dma_mem_phys + ((uintptr_t)(ptr) - (uintptr_t)dma_mem))) | 0xC0000000U)
-
-    volatile DMAChannelRegisterFile *dmaCh = dma+dmaTxChannel;
-//    printk(KERN_INFO "CS: %x, cbAddr: %p, ti: %x, src: %p, dst: %p, len: %u, stride: %u, nextConBk: %p, debug: %x",
-//      dmaCh->cs, (void*)dmaCh->cbAddr, dmaCh->cb.ti, (void*)dmaCh->cb.src, (void*)dmaCh->cb.dst, dmaCh->cb.len, dmaCh->cb.stride, (void*)dmaCh->cb.next, dmaCh->cb.debug);
-
-    volatile DMAControlBlock *cb = &spiTaskMemory->cb[0].cb;
-    req(((uintptr_t)cb) % 256 == 0);
-    cb->ti = BCM2835_DMA_TI_SRC_INC | BCM2835_DMA_TI_DEST_INC;
-    cb->src = TO_BUS(src);
-    cb->dst = TO_BUS(dst);
-    cb->len = size;
-    cb->stride = 0;
-    cb->next = 0;
-    cb->debug = 0;
-    cb->reserved = 0;
-//    DumpCS(dmaCh->cs);
-//    DumpDebug(dmaCh->cb.debug);
-//    DumpTI(dmaCh->cb.ti);
-    LOG("Waiting for transfer %d, src:%p(phys:%p) to dst:%p (phys:%p)", ctr, (void*)src, (void*)cb->src, (void*)dst, (void*)cb->dst);
-    writel(TO_BUS(cb), &dmaCh->cbAddr);
-    writel(BCM2835_DMA_CS_ACTIVE | BCM2835_DMA_CS_END | BCM2835_DMA_CS_INT | BCM2835_DMA_CS_WAIT_FOR_OUTSTANDING_WRITES | BCM2835_DMA_CS_SET_PRIORITY(0xF) | BCM2835_DMA_CS_SET_PANIC_PRIORITY(0xF), &dmaCh->cs);
-
-    while((readl(&dmaCh->cs) & BCM2835_DMA_CS_ACTIVE) && !shuttingDown)
-    {
-      cpu_relax();
-    }
-
-    if (shuttingDown)
-    {
-      LOG("Module shutdown");
-      spiTaskMemory = 0;
-      return;
-    }
-    int errors = 0;
-    for(int i = 0; i < size; ++i)
-      if (dst[i] != src[i])
-      {
-        errors = true;
-        break;
-      }
-
-    if (errors)
-    {
-      printk(KERN_INFO "CS: %x, cbAddr: %p, ti: %x, src: %p, dst: %p, len: %u, stride: %u, nextConBk: %p, debug: %x",
-        dmaCh->cs, (void*)dmaCh->cbAddr, dmaCh->cb.ti, (void*)dmaCh->cb.src, (void*)dmaCh->cb.dst, dmaCh->cb.len, dmaCh->cb.stride, (void*)dmaCh->cb.next, dmaCh->cb.debug);
-      for(int i = 0; i < size; ++i)
-      {
-        printk(KERN_INFO "Result %p %d: %x vs dst %p %x\n", (void*)virt_to_phys(src+i), i, src[i], (void*)virt_to_phys(dst+i), dst[i]);
-      }
-      DumpCS(dmaCh->cs);
-      DumpDebug(dmaCh->cb.debug);
-      DumpTI(dmaCh->cb.ti);
-      LOG("Abort");
-      break;
-    }
-  }
-  LOG("DMA transfer test done");
-  spiTaskMemory = 0;
-}
-#endif
-
 void PumpSPI(void)
 {
 #ifdef KERNEL_DRIVE_WITH_IRQ
@@ -406,11 +311,6 @@ static int display_initialization_thread(void *unused)
   // Expose SPI worker ring bus to user space driver application.
   proc_create(SPI_BUS_PROC_ENTRY_FILENAME, 0, NULL, &fops);
 
-#if 0
-  // XXX Debug:
-  DMATest();
-#endif
-
   setup_timer(&my_timer, my_timer_callback, 0);
    printk("Starting timer to fire in 200ms (%ld)\n", jiffies);
   int ret = mod_timer( &my_timer, jiffies + msecs_to_jiffies(200) );
@@ -433,13 +333,6 @@ int bcm2835_spi_display_init(void)
 #endif
 
   if (!spiTaskMemory) FATAL_ERROR("Shared memory block not initialized!");
-
-#ifdef USE_DMA_TRANSFERS
-  printk(KERN_INFO "DMA TX channel: %d, irq: %d", dmaTxChannel, dmaTxIrq);
-  printk(KERN_INFO "DMA RX channel: %d, irq: %d", dmaRxChannel, dmaRxIrq);
-  spiTaskMemory->dmaTxChannel = dmaTxChannel;
-  spiTaskMemory->dmaRxChannel = dmaRxChannel;
-#endif
 
   spiTaskMemory->sharedMemoryBaseInPhysMemory = (uint32_t)virt_to_phys(spiTaskMemory) | 0x40000000U;
   LOG("PhysBase: %p", (void*)spiTaskMemory->sharedMemoryBaseInPhysMemory);

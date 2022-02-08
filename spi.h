@@ -97,9 +97,7 @@ extern volatile SPIRegisterFile *spi;
 // Defines the maximum size of a single SPI task, in bytes. This excludes the command byte. If MAX_SPI_TASK_SIZE
 // is not defined, there is no length limit that applies. (In ALL_TASKS_SHOULD_DMA version of DMA transfer,
 // there is DMA chaining, so SPI tasks can be arbitrarily long)
-#ifndef ALL_TASKS_SHOULD_DMA
 #define MAX_SPI_TASK_SIZE 65528
-#endif
 
 typedef struct __attribute__((packed)) SPITask
 {
@@ -113,11 +111,6 @@ typedef struct __attribute__((packed)) SPITask
   uint8_t cmd;
 #endif
   uint32_t dmaSpiHeader;
-#ifdef OFFLOAD_PIXEL_COPY_TO_DMA_CPP
-  uint8_t *fb;
-  uint8_t *prevFb;
-  uint16_t width;
-#endif
   uint8_t data[]; // Contains both 8-bit and 9-bit tasks back to back, 8-bit first, then 9-bit.
 
 #ifdef SPI_3WIRE_PROTOCOL
@@ -238,11 +231,6 @@ typedef struct __attribute__((packed)) SPITask
 
 typedef struct SharedMemory
 {
-#ifdef USE_DMA_TRANSFERS
-  volatile DMAControlBlock cb[2];
-  volatile uint32_t dummyDMADestinationWriteAddress;
-  volatile uint32_t dmaTxChannel, dmaRxChannel;
-#endif
   volatile uint32_t queueHead;
   volatile uint32_t queueTail;
   volatile uint32_t spiBytesQueued; // Number of actual payload bytes in the queue
@@ -345,13 +333,6 @@ static inline SPITask *AllocTask(uint32_t bytes) // Returns a pointer to a new S
 
   SPITask *task = (SPITask*)(spiTaskMemory->buffer + tail);
   task->size = bytes;
-#ifdef SPI_3WIRE_PROTOCOL
-  task->sizeExpandedTaskWithPadding = sizeExpandedTaskWithPadding;
-#endif
-#ifdef OFFLOAD_PIXEL_COPY_TO_DMA_CPP
-  task->fb = &task->data[0];
-  task->prevFb = 0;
-#endif
   return task;
 }
 
