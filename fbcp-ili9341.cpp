@@ -17,13 +17,11 @@
 #include <signal.h>
 
 #include "config.h"
-#include "text.h"
 #include "spi.h"
 #include "gpu.h"
 #include "tick.h"
 #include "display.h"
 #include "util.h"
-#include "mailbox.h"
 #include "diff.h"
 #include "mem_alloc.h"
 #include "keyboard.h"
@@ -97,7 +95,6 @@ int main()
 #ifdef RUN_WITH_REALTIME_THREAD_PRIORITY
   SetRealtimeThreadPriority();
 #endif
-  OpenMailbox();
   InitSPI();
   displayContentsLastChanged = tick();
   displayOff = false;
@@ -326,7 +323,6 @@ int main()
 
       // We got a new frame, so update contents of the statistics overlay as well
       if (!displayOff)
-        RefreshStatisticsOverlayText();
     }
 #endif
 
@@ -461,7 +457,6 @@ int main()
 
   DeinitGPU();
   DeinitSPI();
-  CloseMailbox();
   CloseKeyboard();
   printf("Quit.\n");
 }

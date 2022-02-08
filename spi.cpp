@@ -10,7 +10,6 @@
 #include "config.h"
 #include "spi.h"
 #include "util.h"
-#include "mailbox.h"
 #include "mem_alloc.h"
 
 // Uncomment this to print out all bytes sent to the SPI bus
@@ -232,8 +231,6 @@ int InitSPI()
   // TODO: On graceful shutdown, (ctrl-c signal?) close(mem_fd)
 #endif
 
-  uint32_t currentBcmCoreSpeed = MailboxRet2(0x00030002/*Get Clock Rate*/, 0x4/*CORE*/);
-  uint32_t maxBcmCoreTurboSpeed = MailboxRet2(0x00030004/*Get Max Clock Rate*/, 0x4/*CORE*/);
 
   // Estimate how many microseconds transferring a single byte over the SPI bus takes?
   spiUsecsPerByte = 1000000.0 * 8.0/*bits/byte*/ * SPI_BUS_CLOCK_DIVISOR / maxBcmCoreTurboSpeed;
