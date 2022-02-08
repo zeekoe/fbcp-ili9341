@@ -3,7 +3,6 @@
 #include <syslog.h> // syslog
 #include <fcntl.h> // open, O_RDWR, O_SYNC
 #include <sys/mman.h> // mmap, munmap
-#include <pthread.h> // pthread_create
 #include <bcm_host.h> // bcm_host_get_peripheral_address, bcm_host_get_peripheral_size, bcm_host_get_sdram_address
 #endif
 
@@ -24,19 +23,12 @@
 #define DEBUG_PRINT_WRITTEN_BYTE(byte) ((void)0)
 #endif
 
-#ifdef CHIP_SELECT_LINE_NEEDS_REFRESHING_EACH_32BITS_WRITTEN
-void ChipSelectHigh();
-#define TOGGLE_CHIP_SELECT_LINE() if ((++writeCounter & 3) == 0) { ChipSelectHigh(); }
-#else
-#define TOGGLE_CHIP_SELECT_LINE() ((void)0)
-#endif
 
 static uint32_t writeCounter = 0;
 
 #define WRITE_FIFO(word) do { \
   uint8_t w = (word); \
   spi->fifo = w; \
-  TOGGLE_CHIP_SELECT_LINE(); \
   DEBUG_PRINT_WRITTEN_BYTE(w); \
   } while(0)
 
@@ -49,26 +41,6 @@ volatile SPIRegisterFile *spi = 0;
 // that Pi 3 Model B does allow reading this as a u64 load, and even when unaligned, it is around 30% faster to do so compared to loading in parts "lo | (hi << 32)".
 volatile uint64_t *systemTimerRegister = 0;
 
-void DumpSPICS(uint32_t reg)
-{
-  PRINT_FLAG(BCM2835_SPI0_CS_CS);
-  PRINT_FLAG(BCM2835_SPI0_CS_CPHA);
-  PRINT_FLAG(BCM2835_SPI0_CS_CPOL);
-  PRINT_FLAG(BCM2835_SPI0_CS_CLEAR_TX);
-  PRINT_FLAG(BCM2835_SPI0_CS_CLEAR_RX);
-  PRINT_FLAG(BCM2835_SPI0_CS_TA);
-  PRINT_FLAG(BCM2835_SPI0_CS_DMAEN);
-  PRINT_FLAG(BCM2835_SPI0_CS_INTD);
-  PRINT_FLAG(BCM2835_SPI0_CS_INTR);
-  PRINT_FLAG(BCM2835_SPI0_CS_ADCS);
-  PRINT_FLAG(BCM2835_SPI0_CS_DONE);
-  PRINT_FLAG(BCM2835_SPI0_CS_RXD);
-  PRINT_FLAG(BCM2835_SPI0_CS_TXD);
-  PRINT_FLAG(BCM2835_SPI0_CS_RXR);
-  PRINT_FLAG(BCM2835_SPI0_CS_RXF);
-  printf("SPI0 DLEN: %u\n", spi->dlen);
-  printf("SPI0 CE0 register: %d\n", GET_GPIO(GPIO_SPI0_CE0) ? 1 : 0);
-}
 
 // Errata to BCM2835 behavior: documentation states that the SPI0 DLEN register is only used for DMA. However, even when DMA is not being utilized, setting it from
 // a value != 0 or 1 gets rid of an excess idle clock cycle that is present when transmitting each byte. (by default in Polled SPI Mode each 8 bits transfer in 9 clocks)
@@ -90,11 +62,6 @@ void WaitForPolledSPITransferToFinish()
 void RunSPITask(SPITask *task)
 {
   WaitForPolledSPITransferToFinish();
-
-  // The Adafruit 1.65" 240x240 ST7789 based display is unique compared to others that it does want to see the Chip Select line go
-  // low and high to start a new command. For that display we let hardware SPI toggle the CS line, and actually run TA<-0 and TA<-1
-  // transitions to let the CS line live. For most other displays, we just set CS line always enabled for the display throughout fbcp-ili9341 lifetime,
-  // which is a tiny bit faster.
 
   uint8_t *tStart = task->PayloadStart();
   uint8_t *tEnd = task->PayloadEnd();
@@ -133,11 +100,6 @@ void RunSPITask(SPITask *task)
 }
 
 SharedMemory *spiTaskMemory = 0;
-volatile uint64_t spiThreadIdleUsecs = 0;
-volatile uint64_t spiThreadSleepStartTime = 0;
-volatile int spiThreadSleeping = 0;
-double spiUsecsPerByte;
-
 SPITask *GetTask() // Returns the first task in the queue, called in worker thread
 {
   uint32_t head = spiTaskMemory->queueHead;
@@ -161,49 +123,6 @@ void DoneTask(SPITask *task) // Frees the first SPI task from the queue, called 
   __sync_synchronize();
 }
 
-extern volatile bool programRunning;
-
-void ExecuteSPITasks()
-{
-  BEGIN_SPI_COMMUNICATION();
-  {
-    while(programRunning && spiTaskMemory->queueTail != spiTaskMemory->queueHead)
-    {
-      SPITask *task = GetTask();
-      if (task)
-      {
-        RunSPITask(task);
-        DoneTask(task);
-      }
-    }
-  }
-  END_SPI_COMMUNICATION();
-}
-
-#if !defined(KERNEL_MODULE) && defined(USE_SPI_THREAD)
-pthread_t spiThread;
-
-// A worker thread that keeps the SPI bus filled at all times
-void *spi_thread(void *unused)
-{
-#ifdef RUN_WITH_REALTIME_THREAD_PRIORITY
-  SetRealtimeThreadPriority();
-#endif
-  while(programRunning)
-  {
-    if (spiTaskMemory->queueTail != spiTaskMemory->queueHead)
-    {
-      ExecuteSPITasks();
-    }
-    else
-    {
-      if (programRunning) syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAIT, spiTaskMemory->queueHead, 0, 0, 0); // Start sleeping until we get new tasks
-    }
-  }
-  pthread_exit(0);
-}
-#endif
-
 int InitSPI()
 {
 
@@ -217,7 +136,6 @@ int InitSPI()
   gpio = (volatile GPIORegisterFile*)((uintptr_t)bcm2835 + BCM2835_GPIO_BASE);
   systemTimerRegister = (volatile uint64_t*)((uintptr_t)bcm2835 + BCM2835_TIMER_BASE + 0x04); // Generates an unaligned 64-bit pointer, but seems to be fine.
   // TODO: On graceful shutdown, (ctrl-c signal?) close(mem_fd)
-
 
   // Estimate how many microseconds transferring a single byte over the SPI bus takes?
 
@@ -247,22 +165,11 @@ int InitSPI()
   // Enable fast 8 clocks per byte transfer mode, instead of slower 9 clocks per byte.
   UNLOCK_FAST_8_CLOCKS_SPI();
 
-#if !defined(KERNEL_MODULE) && (!defined(KERNEL_MODULE_CLIENT) || defined(KERNEL_MODULE_CLIENT_DRIVES))
   printf("Initializing display\n");
   InitSPIDisplay();
 
-#ifdef USE_SPI_THREAD
-  // Create a dedicated thread to feed the SPI bus. While this is fast, it consumes a lot of CPU. It would be best to replace
-  // this thread with a kernel module that processes the created SPI task queue using interrupts. (while juggling the GPIO D/C line as well)
-  printf("Creating SPI task thread\n");
-  int rc = pthread_create(&spiThread, NULL, spi_thread, NULL); // After creating the thread, it is assumed to have ownership of the SPI bus, so no SPI chat on the main thread after this.
-  if (rc != 0) FATAL_ERROR("Failed to create SPI thread!");
-#else
   // We will be running SPI tasks continuously from the main thread, so keep SPI Transfer Active throughout the lifetime of the driver.
   BEGIN_SPI_COMMUNICATION();
-#endif
-
-#endif
 
   LOG("InitSPI done");
   return 0;
@@ -270,10 +177,6 @@ int InitSPI()
 
 void DeinitSPI()
 {
-#ifdef USE_SPI_THREAD
-  pthread_join(spiThread, NULL);
-  spiThread = (pthread_t)0;
-#endif
   DeinitSPIDisplay();
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS;
