@@ -247,12 +247,6 @@ extern double spiUsecsPerByte;
 
 extern SharedMemory *dmaSourceMemory; // TODO: Optimize away the need to have this at all, instead DMA directly from SPI ring buffer if possible
 
-#ifdef STATISTICS
-extern volatile uint64_t spiThreadIdleUsecs;
-extern volatile uint64_t spiThreadSleepStartTime;
-extern volatile int spiThreadSleeping;
-#endif
-
 extern int mem_fd;
 
 #ifdef SPI_3WIRE_PROTOCOL

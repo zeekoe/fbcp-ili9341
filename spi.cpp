@@ -198,17 +198,7 @@ void *spi_thread(void *unused)
     }
     else
     {
-#ifdef STATISTICS
-      uint64_t t0 = tick();
-      spiThreadSleepStartTime = t0;
-      __atomic_store_n(&spiThreadSleeping, 1, __ATOMIC_RELAXED);
-#endif
       if (programRunning) syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAIT, spiTaskMemory->queueHead, 0, 0, 0); // Start sleeping until we get new tasks
-#ifdef STATISTICS
-      __atomic_store_n(&spiThreadSleeping, 0, __ATOMIC_RELAXED);
-      uint64_t t1 = tick();
-      __sync_fetch_and_add(&spiThreadIdleUsecs, t1-t0);
-#endif
     }
   }
   pthread_exit(0);

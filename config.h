@@ -4,21 +4,17 @@
 
 // If defined, renders a performance overlay on top of the screen. This option is passed from CMake
 // configuration script. If you are getting statistics printed on screen
-// even when this is uncommented, pass -DSTATISTICS=0 to CMake invocation line. You can also try
 // building with
 //   'make VERBOSE=1'
 // to see which config flags are coming from CMake to the build.
-// #define STATISTICS
 
 // How often the on-screen statistics is refreshed (in usecs)
-#define STATISTICS_REFRESH_INTERVAL 200000
 // How many usecs worth of past frame rate data do we preserve in the history buffer. Higher values
 // make the frame rate display counter smoother and respond to changes with a delay, whereas smaller
 // values can make the display fluctuate a bit erratically.
 #define FRAMERATE_HISTORY_LENGTH 400000
 
 // If enabled, displays a visual graph of frame completion times
-// #define FRAME_COMPLETION_TIME_STATISTICS
 
 // If defined, no sleeps are specified and the code runs as fast as possible. This should not improve
 // performance, as the code has been developed with the mindset that sleeping should only occur at

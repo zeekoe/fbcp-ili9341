@@ -20,7 +20,6 @@
 #include "text.h"
 #include "spi.h"
 #include "gpu.h"
-#include "statistics.h"
 #include "tick.h"
 #include "display.h"
 #include "util.h"
@@ -28,7 +27,6 @@
 #include "diff.h"
 #include "mem_alloc.h"
 #include "keyboard.h"
-#include "low_battery.h"
 
 int CountNumChangedPixels(uint16_t *framebuffer, uint16_t *prevFramebuffer)
 {
@@ -103,7 +101,6 @@ int main()
   InitSPI();
   displayContentsLastChanged = tick();
   displayOff = false;
-  InitLowBatterySystem();
 
   // Track current SPI display controller write X and Y cursors.
   int spiX = -1;
@@ -198,27 +195,7 @@ int main()
       {
         uint32_t bytesInQueueBefore = spiTaskMemory->spiBytesQueued;
         uint32_t sleepUsecs = (uint32_t)(usecsUntilSpiQueueEmpty*0.4);
-#ifdef STATISTICS
-        uint64_t t0 = tick();
-#endif
         if (sleepUsecs > 1000) usleep(500);
-
-#ifdef STATISTICS
-        uint64_t t1 = tick();
-        uint32_t bytesInQueueAfter = spiTaskMemory->spiBytesQueued;
-        bool starved = (spiTaskMemory->queueHead == spiTaskMemory->queueTail);
-        if (starved) spiThreadWasWorkingHardBefore = false;
-
-/*
-        if (once && starved)
-        {
-          printf("Had %u bytes in queue, asked to sleep for %u usecs, got %u usecs sleep, afterwards %u bytes in queue. (got %.2f%% work done)%s\n",
-            bytesInQueueBefore, sleepUsecs, (uint32_t)(t1 - t0), bytesInQueueAfter, (bytesInQueueBefore-bytesInQueueAfter)*100.0/bytesInQueueBefore,
-            starved ? "  SLEPT TOO LONG, SPI THREAD STARVED" : "");
-          once = false;
-        }
-*/
-#endif
       }
     }
 
@@ -230,16 +207,6 @@ int main()
       frameTimeHistorySize -= expiredFrames;
       for(int i = 0; i < frameTimeHistorySize; ++i) frameTimeHistory[i] = frameTimeHistory[i+expiredFrames];
     }
-
-#ifdef STATISTICS
-    int expiredSkippedFrames = 0;
-    while(expiredSkippedFrames < frameSkipTimeHistorySize && now - frameSkipTimeHistory[expiredSkippedFrames] >= 1000000/*FRAMERATE_HISTORY_LENGTH*/) ++expiredSkippedFrames;
-    if (expiredSkippedFrames > 0)
-    {
-      frameSkipTimeHistorySize -= expiredSkippedFrames;
-      for(int i = 0; i < frameSkipTimeHistorySize; ++i) frameSkipTimeHistory[i] = frameSkipTimeHistory[i+expiredSkippedFrames];
-    }
-#endif
 
     int numNewFrames = __atomic_load_n(&numNewGpuFrames, __ATOMIC_SEQ_CST);
     bool gotNewFramebuffer = (numNewFrames > 0);
@@ -267,23 +234,10 @@ int main()
       memcpy(framebuffer[0], videoCoreFramebuffer[1], gpuFramebufferSizeBytes);
 #endif
 
-      PollLowBattery();
-
-#ifdef STATISTICS
-      uint64_t now = tick();
-      for(int i = 0; i < numNewFrames - 1 && frameSkipTimeHistorySize < FRAMERATE_HISTORY_LENGTH; ++i)
-        frameSkipTimeHistory[frameSkipTimeHistorySize++] = now;
-#endif
       __atomic_fetch_sub(&numNewGpuFrames, numNewFrames, __ATOMIC_SEQ_CST);
 
-      DrawStatisticsOverlay(framebuffer[0]);
-      DrawLowBatteryIcon(framebuffer[0]);
 
 #ifdef USE_GPU_VSYNC
-
-#ifdef STATISTICS
-      uint64_t completelyUnnecessaryTimeWastedPollingGPUStart = tick();
-#endif
 
       // DispmanX PROBLEM! When latching onto the vsync signal, the DispmanX API sends the signal at arbitrary phase with respect to the application actually producing its frames.
       // Therefore even while we do get a smooth 16.666.. msec interval vsync signal, we have no idea whether the application has actually produced a new frame at that time. Therefore
@@ -307,18 +261,7 @@ int main()
       numNewFrames = __atomic_load_n(&numNewGpuFrames, __ATOMIC_SEQ_CST);
       __atomic_fetch_sub(&numNewGpuFrames, numNewFrames, __ATOMIC_SEQ_CST);
 
-#ifdef STATISTICS
-      now = tick();
-      for(int i = 0; i < numNewFrames - 1 && frameSkipTimeHistorySize < FRAMERATE_HISTORY_LENGTH; ++i)
-        frameSkipTimeHistory[frameSkipTimeHistorySize++] = now;
-
-      uint64_t completelyUnnecessaryTimeWastedPollingGPUStop = tick();
-      __atomic_fetch_add(&timeWastedPollingGPU, completelyUnnecessaryTimeWastedPollingGPUStop-completelyUnnecessaryTimeWastedPollingGPUStart, __ATOMIC_RELAXED);
-#endif
-
 #else // !USE_GPU_VSYNC
-      if (!displayOff)
-        RefreshStatisticsOverlayText();
 #endif
     }
 
@@ -513,19 +456,6 @@ int main()
       TurnDisplayOff();
       displayOff = true;
     }
-#endif
-
-#ifdef STATISTICS
-    if (bytesTransferred > 0)
-    {
-      if (frameTimeHistorySize < FRAME_HISTORY_MAX_SIZE)
-      {
-        frameTimeHistory[frameTimeHistorySize].interlaced = interlacedUpdate || prevFrameWasInterlacedUpdate;
-        frameTimeHistory[frameTimeHistorySize++].time = tick();
-      }
-      AddFrameCompletionTimeMarker();
-    }
-    statsBytesTransferred += bytesTransferred;
 #endif
   }
 

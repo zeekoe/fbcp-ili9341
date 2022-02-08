@@ -11,7 +11,6 @@
 #include "display.h"
 #include "tick.h"
 #include "util.h"
-#include "statistics.h"
 #include "mem_alloc.h"
 
 bool MarkProgramQuitting(void);
@@ -221,9 +220,6 @@ void *gpu_polling_thread(void*)
     uint64_t t1 = tick();
     if (!gotNewFramebuffer)
     {
-#ifdef STATISTICS
-      __atomic_fetch_add(&timeWastedPollingGPU, t1-t0, __ATOMIC_RELAXED);
-#endif
       // We did not get a new frame - halve the eager fast tracking factor geometrically, we are probably
       // near synchronized to the update rate of the content.
       eagerFastTrackToSnapshottingFramesEarlierFactor /= 2;

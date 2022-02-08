@@ -106,15 +106,6 @@ else()
 	message(STATUS "Preserving aspect ratio when scaling source image to the SPI display, introducing letterboxing/pillarboxing if HDMI and SPI aspect ratios are different (Pass -DDISPLAY_BREAK_ASPECT_RATIO_WHEN_SCALING=ON to stretch HDMI to cover full screen if you do not care about aspect ratio)")
 endif()
 
-set(STATISTICS 1 CACHE STRING "Set to 0, 1 or 2 to configure the level of statistics to display. 0=OFF, 1=regular statistics, 2=frame rate interval histogram")
-if (STATISTICS GREATER 1)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFRAME_COMPLETION_TIME_STATISTICS")
-endif()
-
-if (STATISTICS GREATER 0)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSTATISTICS")
-endif()
-
 set(SPI_BUS_CLOCK_DIVISOR 40)
 if (SPI_BUS_CLOCK_DIVISOR)
 	message(STATUS "SPI_BUS_CLOCK_DIVISOR set to ${SPI_BUS_CLOCK_DIVISOR}. Try setting this to a higher value (must be an even number) if this causes problems. Display update speed = core_freq/divisor. (on Pi3B, by default core_freq=400). A safe starting default value may be -DSPI_BUS_CLOCK_DIVISOR=40")
