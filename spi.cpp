@@ -248,14 +248,6 @@ int InitSPI()
   SET_GPIO_MODE(GPIO_SPI0_CLK, 0x04);
 
 #ifdef DISPLAY_NEEDS_CHIP_SELECT_SIGNAL
-  // The Adafruit 1.65" 240x240 ST7789 based display is unique compared to others that it does want to see the Chip Select line go
-  // low and high to start a new command. For that display we let hardware SPI toggle the CS line, and actually run TA<-0 and TA<-1
-  // transitions to let the CS line live. For most other displays, we just set CS line always enabled for the display throughout
-  // fbcp-ili9341 lifetime, which is a tiny bit faster.
-  SET_GPIO_MODE(GPIO_SPI0_CE0, 0x04);
-#ifdef DISPLAY_USES_CS1
-  SET_GPIO_MODE(GPIO_SPI0_CE1, 0x04);
-#endif
 #else
   // Set the SPI 0 pin explicitly to output, and enable chip select on the line by setting it to low.
   // fbcp-ili9341 assumes exclusive access to the SPI0 bus, and exclusive presence of only one device on the bus,
@@ -272,31 +264,10 @@ int InitSPI()
 #endif
 
   // Initialize SPI thread task buffer memory
-#ifdef KERNEL_MODULE_CLIENT
-  int driverfd = open("/proc/bcm2835_spi_display_bus", O_RDWR|O_SYNC);
-  if (driverfd < 0) FATAL_ERROR("Could not open SPI ring buffer - kernel driver module not running?");
-  spiTaskMemory = (SharedMemory*)mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED/* | MAP_NORESERVE | MAP_POPULATE | MAP_LOCKED*/, driverfd, 0);
-  close(driverfd);
-  if (spiTaskMemory == MAP_FAILED) FATAL_ERROR("Could not mmap SPI ring buffer!");
-  printf("Got shared memory block %p, ring buffer head %p, ring buffer tail %p, shared memory block phys address: %p\n", (const char *)spiTaskMemory, spiTaskMemory->queueHead, spiTaskMemory->queueTail, spiTaskMemory->sharedMemoryBaseInPhysMemory);
 
-#else
-
-#ifdef KERNEL_MODULE
-  spiTaskMemory = (SharedMemory*)kmalloc(SHARED_MEMORY_SIZE, GFP_KERNEL | GFP_DMA);
-  // TODO: Ideally we would be able to directly perform the DMA from the SPI ring buffer in 'spiTaskMemory'. However
-  // that pointer is shared to userland, and it is proving troublesome to make it both userland-writable as well as cache-bypassing DMA coherent.
-  // Therefore these two memory areas are separate for now, and we memcpy() from SPI ring buffer to the following intermediate 'dmaSourceMemory'
-  // memory area to perform the DMA transfer. Is there a way to avoid this intermediate buffer? That would improve performance a bit.
-  dmaSourceMemory = (SharedMemory*)dma_alloc_writecombine(0, SHARED_MEMORY_SIZE, &spiTaskMemoryPhysical, GFP_KERNEL);
-  LOG("Allocated DMA memory: mem: %p, phys: %p", spiTaskMemory, (void*)spiTaskMemoryPhysical);
-  memset((void*)spiTaskMemory, 0, SHARED_MEMORY_SIZE);
-#else
   spiTaskMemory = (SharedMemory*)Malloc(SHARED_MEMORY_SIZE, "spi.cpp shared task memory");
-#endif
 
   spiTaskMemory->queueHead = spiTaskMemory->queueTail = spiTaskMemory->spiBytesQueued = 0;
-#endif
 
   // Enable fast 8 clocks per byte transfer mode, instead of slower 9 clocks per byte.
   UNLOCK_FAST_8_CLOCKS_SPI();
@@ -332,16 +303,12 @@ void DeinitSPI()
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS;
 
-#ifndef KERNEL_MODULE_CLIENT
-#ifdef GPIO_TFT_DATA_CONTROL
   SET_GPIO_MODE(GPIO_TFT_DATA_CONTROL, 0);
-#endif
   SET_GPIO_MODE(GPIO_SPI0_CE1, 0);
   SET_GPIO_MODE(GPIO_SPI0_CE0, 0);
   SET_GPIO_MODE(GPIO_SPI0_MISO, 0);
   SET_GPIO_MODE(GPIO_SPI0_MOSI, 0);
   SET_GPIO_MODE(GPIO_SPI0_CLK, 0);
-#endif
 
   if (bcm2835)
   {
@@ -355,15 +322,6 @@ void DeinitSPI()
     mem_fd = -1;
   }
 
-#ifndef KERNEL_MODULE_CLIENT
-
-#ifdef KERNEL_MODULE
-  kfree(spiTaskMemory);
-  dma_free_writecombine(0, SHARED_MEMORY_SIZE, dmaSourceMemory, spiTaskMemoryPhysical);
-  spiTaskMemoryPhysical = 0;
-#else
   free(spiTaskMemory);
-#endif
-#endif
   spiTaskMemory = 0;
 }
