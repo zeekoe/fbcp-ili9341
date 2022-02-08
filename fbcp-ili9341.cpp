@@ -24,7 +24,6 @@
 #include "util.h"
 #include "diff.h"
 #include "mem_alloc.h"
-#include "keyboard.h"
 
 int CountNumChangedPixels(uint16_t *framebuffer, uint16_t *prevFramebuffer)
 {
@@ -131,7 +130,6 @@ int main()
   bool prevFrameWasInterlacedUpdate = false;
   bool interlacedUpdate = false; // True if the previous update we did was an interlaced half field update.
   int frameParity = 0; // For interlaced frame updates, this is either 0 or 1 to denote evens or odds.
-  OpenKeyboard();
   printf("All initialized, now running main loop...\n");
   while(programRunning)
   {
@@ -431,32 +429,9 @@ int main()
       prevFrameEnd = curFrameEnd;
       curFrameEnd = spiTaskMemory->queueTail;
     }
-
-#if defined(BACKLIGHT_CONTROL) && defined(TURN_DISPLAY_OFF_AFTER_USECS_OF_INACTIVITY)
-    double percentageOfScreenChanged = (double)numChangedPixels/(DISPLAY_DRAWABLE_WIDTH*DISPLAY_DRAWABLE_HEIGHT);
-    bool displayIsActive = percentageOfScreenChanged > DISPLAY_CONSIDERED_INACTIVE_PERCENTAGE;
-    if (displayIsActive)
-      displayContentsLastChanged = tick();
-
-    bool keyboardIsActive = TimeSinceLastKeyboardPress() < TURN_DISPLAY_OFF_AFTER_USECS_OF_INACTIVITY;
-    if (displayIsActive || keyboardIsActive)
-    {
-      if (displayOff)
-      {
-        TurnDisplayOn();
-        displayOff = false;
-      }
-    }
-    else if (!displayOff && tick() - displayContentsLastChanged > TURN_DISPLAY_OFF_AFTER_USECS_OF_INACTIVITY)
-    {
-      TurnDisplayOff();
-      displayOff = true;
-    }
-#endif
   }
 
   DeinitGPU();
   DeinitSPI();
-  CloseKeyboard();
   printf("Quit.\n");
 }
