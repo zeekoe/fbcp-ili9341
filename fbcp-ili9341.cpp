@@ -18,30 +18,11 @@
 
 #include "config.h"
 #include "spi.h"
-#include "gpu.h"
 #include "tick.h"
 #include "display.h"
 #include "util.h"
-#include "diff.h"
 #include "mem_alloc.h"
 
-int CountNumChangedPixels(uint16_t *framebuffer, uint16_t *prevFramebuffer)
-{
-  int changedPixels = 0;
-  for(int y = 0; y < gpuFrameHeight; ++y)
-  {
-    for(int x = 0; x < gpuFrameWidth; ++x)
-      if (framebuffer[x] != prevFramebuffer[x])
-        ++changedPixels;
-
-    framebuffer += gpuFramebufferScanlineStrideBytes >> 1;
-    prevFramebuffer += gpuFramebufferScanlineStrideBytes >> 1;
-  }
-  return changedPixels;
-}
-
-uint64_t displayContentsLastChanged = 0;
-bool displayOff = false;
 
 volatile bool programRunning = true;
 
