@@ -221,11 +221,8 @@ int InitSPI()
 
   // Estimate how many microseconds transferring a single byte over the SPI bus takes?
 
-#if !defined(KERNEL_MODULE_CLIENT) || defined(KERNEL_MODULE_CLIENT_DRIVES)
   // By default all GPIO pins are in input mode (0x00), initialize them for SPI and GPIO writes
-#ifdef GPIO_TFT_DATA_CONTROL
   SET_GPIO_MODE(GPIO_TFT_DATA_CONTROL, 0x01); // Data/Control pin to output (0x01)
-#endif
   // The Pirate Audio hat ST7789 based display has Data/Control on the MISO pin, so only initialize the pin as MISO if the
   // Data/Control pin does not use it.
   SET_GPIO_MODE(GPIO_SPI0_MISO, 0x04);
@@ -240,7 +237,6 @@ int InitSPI()
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS; // Initialize the Control and Status register to defaults: CS=0 (Chip Select), CPHA=0 (Clock Phase), CPOL=0 (Clock Polarity), CSPOL=0 (Chip Select Polarity), TA=0 (Transfer not active), and reset TX and RX queues.
   spi->clk = SPI_BUS_CLOCK_DIVISOR; // Clock Divider determines SPI bus speed, resulting speed=256MHz/clk
-#endif
 
   // Initialize SPI thread task buffer memory
 
