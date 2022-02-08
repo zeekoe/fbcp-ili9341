@@ -7,12 +7,8 @@
 #define DISPLAY_SET_CURSOR_Y 0x2B
 #define DISPLAY_WRITE_PIXELS 0x2C
 
-#if !defined(GPIO_TFT_DATA_CONTROL)
-#define GPIO_TFT_DATA_CONTROL 24
-#endif
-
-#if !defined(GPIO_TFT_RESET_PIN)
-#define GPIO_TFT_RESET_PIN 25
+#ifdef WAVESHARE35B_ILI9486
+#include "waveshare35b.h"
 #endif
 
 #define DISPLAY_NATIVE_WIDTH 320
