@@ -320,7 +320,6 @@ int main()
       AddHistogramSample(frameObtainedTime);
 
       // We got a new frame, so update contents of the statistics overlay as well
-      if (!displayOff)
     }
 #endif
 
