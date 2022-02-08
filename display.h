@@ -67,11 +67,15 @@
 #define SPI_BYTESPERPIXEL 2
 
 void ClearScreen(void);
+
 void RandomizeScreen(void);
 
 void TurnBacklightOn(void);
+
 void TurnBacklightOff(void);
+
 void TurnDisplayOn(void);
+
 void TurnDisplayOff(void);
 
 void DeinitSPIDisplay(void);

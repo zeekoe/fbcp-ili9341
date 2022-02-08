@@ -1,9 +1,12 @@
 #pragma once
 
 #ifndef KERNEL_MODULE
+
 #include <inttypes.h>
 #include <sys/syscall.h>
+
 #endif
+
 #include <linux/futex.h>
 
 #include "display.h"
@@ -55,12 +58,11 @@
 
 extern volatile void *bcm2835;
 
-typedef struct GPIORegisterFile
-{
-  uint32_t gpfsel[6], reserved0; // GPIO Function Select registers, 3 bits per pin, 10 pins in an uint32_t
-  uint32_t gpset[2], reserved1; // GPIO Pin Output Set registers, write a 1 to bit at index I to set the pin at index I high
-  uint32_t gpclr[2], reserved2; // GPIO Pin Output Clear registers, write a 1 to bit at index I to set the pin at index I low
-  uint32_t gplev[2];
+typedef struct GPIORegisterFile {
+    uint32_t gpfsel[6], reserved0; // GPIO Function Select registers, 3 bits per pin, 10 pins in an uint32_t
+    uint32_t gpset[2], reserved1; // GPIO Pin Output Set registers, write a 1 to bit at index I to set the pin at index I high
+    uint32_t gpclr[2], reserved2; // GPIO Pin Output Clear registers, write a 1 to bit at index I to set the pin at index I low
+    uint32_t gplev[2];
 } GPIORegisterFile;
 extern volatile GPIORegisterFile *gpio;
 
@@ -70,12 +72,11 @@ extern volatile GPIORegisterFile *gpio;
 #define SET_GPIO(pin) gpio->gpset[0] = 1 << (pin) // Pin must be (0-31)
 #define CLEAR_GPIO(pin) gpio->gpclr[0] = 1 << (pin) // Pin must be (0-31)
 
-typedef struct SPIRegisterFile
-{
-  uint32_t cs;   // SPI Master Control and Status register
-  uint32_t fifo; // SPI Master TX and RX FIFOs
-  uint32_t clk;  // SPI Master Clock Divider
-  uint32_t dlen; // SPI Master Number of DMA Bytes to Write
+typedef struct SPIRegisterFile {
+    uint32_t cs;   // SPI Master Control and Status register
+    uint32_t fifo; // SPI Master TX and RX FIFOs
+    uint32_t clk;  // SPI Master Clock Divider
+    uint32_t dlen; // SPI Master Number of DMA Bytes to Write
 } SPIRegisterFile;
 extern volatile SPIRegisterFile *spi;
 
@@ -98,15 +99,16 @@ extern volatile SPIRegisterFile *spi;
 // there is DMA chaining, so SPI tasks can be arbitrarily long)
 #define MAX_SPI_TASK_SIZE 65528
 
-typedef struct __attribute__((packed)) SPITask
-{
-  uint32_t size; // Size, including both 8-bit and 9-bit tasks
-  uint8_t cmd;
-  uint8_t data[]; // Contains both 8-bit and 9-bit tasks back to back, 8-bit first, then 9-bit.
+typedef struct __attribute__((packed)) SPITask {
+    uint32_t size; // Size, including both 8-bit and 9-bit tasks
+    uint8_t cmd;
+    uint8_t data[]; // Contains both 8-bit and 9-bit tasks back to back, 8-bit first, then 9-bit.
 
-  inline uint8_t *PayloadStart() { return data; }
-  inline uint8_t *PayloadEnd() { return data + size; }
-  inline uint32_t PayloadSize() const { return size; }
+    inline uint8_t *PayloadStart() { return data; }
+
+    inline uint8_t *PayloadEnd() { return data + size; }
+
+    inline uint32_t PayloadSize() const { return size; }
 
 } SPITask;
 
@@ -212,14 +214,13 @@ typedef struct __attribute__((packed)) SPITask
   } while(0)
 #endif
 
-typedef struct SharedMemory
-{
-  volatile uint32_t queueHead;
-  volatile uint32_t queueTail;
-  volatile uint32_t spiBytesQueued; // Number of actual payload bytes in the queue
-  volatile uint32_t interruptsRaised;
-  volatile uintptr_t sharedMemoryBaseInPhysMemory;
-  volatile uint8_t buffer[];
+typedef struct SharedMemory {
+    volatile uint32_t queueHead;
+    volatile uint32_t queueTail;
+    volatile uint32_t spiBytesQueued; // Number of actual payload bytes in the queue
+    volatile uint32_t interruptsRaised;
+    volatile uintptr_t sharedMemoryBaseInPhysMemory;
+    volatile uint8_t buffer[];
 } SharedMemory;
 
 #ifdef KERNEL_MODULE
@@ -252,85 +253,88 @@ uint32_t NumBytesNeededFor32BitSPITask(uint32_t byteSizeFor8BitTask);
 static inline SPITask *AllocTask(uint32_t bytes) // Returns a pointer to a new SPI task block, called on main thread
 {
 #ifdef SPI_3WIRE_PROTOCOL
-  // For 3-wire/9-bit tasks, store the converted task right at the end of the 8-bit task.
+    // For 3-wire/9-bit tasks, store the converted task right at the end of the 8-bit task.
 #ifdef SPI_32BIT_COMMANDS
-  uint32_t sizeExpandedTaskWithPadding = NumBytesNeededFor32BitSPITask(bytes) + SPI_9BIT_TASK_PADDING_BYTES;
+    uint32_t sizeExpandedTaskWithPadding = NumBytesNeededFor32BitSPITask(bytes) + SPI_9BIT_TASK_PADDING_BYTES;
 #else
-  uint32_t sizeExpandedTaskWithPadding = NumBytesNeededFor9BitSPITask(bytes) + SPI_9BIT_TASK_PADDING_BYTES;
+    uint32_t sizeExpandedTaskWithPadding = NumBytesNeededFor9BitSPITask(bytes) + SPI_9BIT_TASK_PADDING_BYTES;
 #endif
-  bytes += sizeExpandedTaskWithPadding;
+    bytes += sizeExpandedTaskWithPadding;
 #else
 //  const uint32_t totalBytesFor9BitTask = 0;
 #endif
 
-  uint32_t bytesToAllocate = sizeof(SPITask) + bytes;// + totalBytesFor9BitTask;
-  uint32_t tail = spiTaskMemory->queueTail;
-  uint32_t newTail = tail + bytesToAllocate;
-  // Is the new task too large to write contiguously into the ring buffer, that it's split into two parts? We never split,
-  // but instead write a sentinel at the end of the ring buffer, and jump the tail back to the beginning of the buffer and
-  // allocate the new task there. However in doing so, we must make sure that we don't write over the head marker.
-  if (newTail + sizeof(SPITask)/*Add extra SPITask size so that there will always be room for eob marker*/ >= SPI_QUEUE_SIZE)
-  {
-    uint32_t head = spiTaskMemory->queueHead;
-    // Write a sentinel, but wait for the head to advance first so that it is safe to write.
-    while(head > tail || head == 0/*Head must move > 0 so that we don't stomp on it*/)
-    {
+    uint32_t bytesToAllocate = sizeof(SPITask) + bytes;// + totalBytesFor9BitTask;
+    uint32_t tail = spiTaskMemory->queueTail;
+    uint32_t newTail = tail + bytesToAllocate;
+    // Is the new task too large to write contiguously into the ring buffer, that it's split into two parts? We never split,
+    // but instead write a sentinel at the end of the ring buffer, and jump the tail back to the beginning of the buffer and
+    // allocate the new task there. However in doing so, we must make sure that we don't write over the head marker.
+    if (newTail + sizeof(SPITask)/*Add extra SPITask size so that there will always be room for eob marker*/ >=
+        SPI_QUEUE_SIZE) {
+        uint32_t head = spiTaskMemory->queueHead;
+        // Write a sentinel, but wait for the head to advance first so that it is safe to write.
+        while (head > tail || head == 0/*Head must move > 0 so that we don't stomp on it*/) {
 #if defined(KERNEL_MODULE_CLIENT) && !defined(KERNEL_MODULE)
-      // Hack: Pump the kernel module to start transferring in case it has stopped. TODO: Remove this line:
-      if (!(spi->cs & BCM2835_SPI0_CS_TA)) spi->cs |= BCM2835_SPI0_CS_TA;
-      // Wait until there are no remaining bytes to process in the far right end of the buffer - we'll write an eob marker there as soon as the read pointer has cleared it.
-      // At this point the SPI queue may actually be quite empty, so don't sleep (except for now in kernel client app)
-      usleep(100);
+            // Hack: Pump the kernel module to start transferring in case it has stopped. TODO: Remove this line:
+            if (!(spi->cs & BCM2835_SPI0_CS_TA)) spi->cs |= BCM2835_SPI0_CS_TA;
+            // Wait until there are no remaining bytes to process in the far right end of the buffer - we'll write an eob marker there as soon as the read pointer has cleared it.
+            // At this point the SPI queue may actually be quite empty, so don't sleep (except for now in kernel client app)
+            usleep(100);
 #endif
-      head = spiTaskMemory->queueHead;
-    }
-    SPITask *endOfBuffer = (SPITask*)(spiTaskMemory->buffer + tail);
-    endOfBuffer->cmd = 0; // Use cmd=0x00 to denote "end of buffer, wrap to beginning"
-    __sync_synchronize();
-    spiTaskMemory->queueTail = 0;
-    __sync_synchronize();
+            head = spiTaskMemory->queueHead;
+        }
+        SPITask *endOfBuffer = (SPITask *) (spiTaskMemory->buffer + tail);
+        endOfBuffer->cmd = 0; // Use cmd=0x00 to denote "end of buffer, wrap to beginning"
+        __sync_synchronize();
+        spiTaskMemory->queueTail = 0;
+        __sync_synchronize();
 #if !defined(KERNEL_MODULE_CLIENT) && !defined(KERNEL_MODULE)
-    if (spiTaskMemory->queueHead == tail) syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAKE, 1, 0, 0, 0); // Wake the SPI thread if it was sleeping to get new tasks
+        if (spiTaskMemory->queueHead == tail)
+            syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAKE, 1, 0, 0,
+                    0); // Wake the SPI thread if it was sleeping to get new tasks
 #endif
-    tail = 0;
-    newTail = bytesToAllocate;
-  }
+        tail = 0;
+        newTail = bytesToAllocate;
+    }
 
-  // If the SPI task queue is full, wait for the SPI thread to process some tasks. This throttles the main thread to not run too fast.
-  uint32_t head = spiTaskMemory->queueHead;
-  while(head > tail && head <= newTail)
-  {
+    // If the SPI task queue is full, wait for the SPI thread to process some tasks. This throttles the main thread to not run too fast.
+    uint32_t head = spiTaskMemory->queueHead;
+    while (head > tail && head <= newTail) {
 #if defined(KERNEL_MODULE_CLIENT) && !defined(KERNEL_MODULE)
-      // Hack: Pump the kernel module to start transferring in case it has stopped. TODO: Remove this line:
-    if (!(spi->cs & BCM2835_SPI0_CS_TA)) spi->cs |= BCM2835_SPI0_CS_TA;
+        // Hack: Pump the kernel module to start transferring in case it has stopped. TODO: Remove this line:
+      if (!(spi->cs & BCM2835_SPI0_CS_TA)) spi->cs |= BCM2835_SPI0_CS_TA;
 #endif
-    usleep(100); // Since the SPI queue is full, we can afford to sleep a bit on the main thread without introducing lag.
-    head = spiTaskMemory->queueHead;
-  }
+        usleep(100); // Since the SPI queue is full, we can afford to sleep a bit on the main thread without introducing lag.
+        head = spiTaskMemory->queueHead;
+    }
 
-  SPITask *task = (SPITask*)(spiTaskMemory->buffer + tail);
-  task->size = bytes;
-  return task;
+    SPITask *task = (SPITask *) (spiTaskMemory->buffer + tail);
+    task->size = bytes;
+    return task;
 }
 
-static inline void CommitTask(SPITask *task) // Advertises the given SPI task from main thread to worker, called on main thread
+static inline void
+CommitTask(SPITask *task) // Advertises the given SPI task from main thread to worker, called on main thread
 {
 #ifdef SPI_3WIRE_PROTOCOL
 #ifdef SPI_32BIT_COMMANDS
-  Interleave16BitSPITaskTo32Bit(task);
+    Interleave16BitSPITaskTo32Bit(task);
 #else
-  Interleave8BitSPITaskTo9Bit(task);
+    Interleave8BitSPITaskTo9Bit(task);
 #endif
 #endif
-  __sync_synchronize();
+    __sync_synchronize();
 #if !defined(KERNEL_MODULE_CLIENT) && !defined(KERNEL_MODULE)
-  uint32_t tail = spiTaskMemory->queueTail;
+    uint32_t tail = spiTaskMemory->queueTail;
 #endif
-  spiTaskMemory->queueTail = (uint32_t)((uint8_t*)task - spiTaskMemory->buffer) + sizeof(SPITask) + task->size;
-  __atomic_fetch_add(&spiTaskMemory->spiBytesQueued, task->PayloadSize()+1, __ATOMIC_RELAXED);
-  __sync_synchronize();
+    spiTaskMemory->queueTail = (uint32_t) ((uint8_t *) task - spiTaskMemory->buffer) + sizeof(SPITask) + task->size;
+    __atomic_fetch_add(&spiTaskMemory->spiBytesQueued, task->PayloadSize() + 1, __ATOMIC_RELAXED);
+    __sync_synchronize();
 #if !defined(KERNEL_MODULE_CLIENT) && !defined(KERNEL_MODULE)
-  if (spiTaskMemory->queueHead == tail) syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAKE, 1, 0, 0, 0); // Wake the SPI thread if it was sleeping to get new tasks
+    if (spiTaskMemory->queueHead == tail)
+        syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAKE, 1, 0, 0,
+                0); // Wake the SPI thread if it was sleeping to get new tasks
 #endif
 }
 
@@ -345,10 +349,15 @@ static inline void CommitTask(SPITask *task) // Advertises the given SPI task fr
 #endif
 
 int InitSPI(void);
+
 void DeinitSPI(void);
+
 void RunSPITask(SPITask *task);
+
 SPITask *GetTask(void);
+
 void DoneTask(SPITask *task);
+
 #ifdef RUN_WITH_REALTIME_THREAD_PRIORITY
 void SetRealtimeThreadPriority();
 #endif

@@ -8,7 +8,9 @@
 #define DISPLAY_WRITE_PIXELS 0x2C
 
 #ifdef WAVESHARE35B_ILI9486
+
 #include "waveshare35b.h"
+
 #endif
 
 #define DISPLAY_NATIVE_WIDTH 320
@@ -22,7 +24,6 @@
 #define MUST_SEND_FULL_CURSOR_WINDOW
 
 void InitILI9486(void);
-#define InitSPIDisplay InitILI9486
 
 // for the waveshare35b version 2 (IPS) we have to disable gamma control; uncomment if you use version 2
 // #define WAVESHARE_SKIP_GAMMA_CONTROL

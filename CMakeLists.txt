@@ -150,4 +150,4 @@ message(STATUS "Targeting WaveShare 3.5 inch (B) display with ILI9486")
 
 add_executable(fbcp-ili9341 ${sourceFiles})
 
-target_link_libraries(fbcp-ili9341 pthread bcm_host atomic)
+target_link_libraries(fbcp-ili9341 bcm_host atomic)
