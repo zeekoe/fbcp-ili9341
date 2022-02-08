@@ -10,7 +10,6 @@
 #include "config.h"
 #include "spi.h"
 #include "util.h"
-#include "dma.h"
 #include "mailbox.h"
 #include "mem_alloc.h"
 
@@ -566,37 +565,13 @@ int InitSPI()
 
   // Initialize SPI thread task buffer memory
 #ifdef KERNEL_MODULE_CLIENT
-  int driverfd = open("/proc/bcm2835_spi_display_bus", O_RDWR|O_SYNC);
-  if (driverfd < 0) FATAL_ERROR("Could not open SPI ring buffer - kernel driver module not running?");
-  spiTaskMemory = (SharedMemory*)mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED/* | MAP_NORESERVE | MAP_POPULATE | MAP_LOCKED*/, driverfd, 0);
-  close(driverfd);
-  if (spiTaskMemory == MAP_FAILED) FATAL_ERROR("Could not mmap SPI ring buffer!");
-  printf("Got shared memory block %p, ring buffer head %p, ring buffer tail %p, shared memory block phys address: %p\n", (const char *)spiTaskMemory, spiTaskMemory->queueHead, spiTaskMemory->queueTail, spiTaskMemory->sharedMemoryBaseInPhysMemory);
-
-#ifdef USE_DMA_TRANSFERS
-  printf("DMA TX channel: %d, DMA RX channel: %d\n", spiTaskMemory->dmaTxChannel, spiTaskMemory->dmaRxChannel);
-#endif
-
 #else
-
 #ifdef KERNEL_MODULE
-  spiTaskMemory = (SharedMemory*)kmalloc(SHARED_MEMORY_SIZE, GFP_KERNEL | GFP_DMA);
-  // TODO: Ideally we would be able to directly perform the DMA from the SPI ring buffer in 'spiTaskMemory'. However
-  // that pointer is shared to userland, and it is proving troublesome to make it both userland-writable as well as cache-bypassing DMA coherent.
-  // Therefore these two memory areas are separate for now, and we memcpy() from SPI ring buffer to the following intermediate 'dmaSourceMemory'
-  // memory area to perform the DMA transfer. Is there a way to avoid this intermediate buffer? That would improve performance a bit.
-  dmaSourceMemory = (SharedMemory*)dma_alloc_writecombine(0, SHARED_MEMORY_SIZE, &spiTaskMemoryPhysical, GFP_KERNEL);
-  LOG("Allocated DMA memory: mem: %p, phys: %p", spiTaskMemory, (void*)spiTaskMemoryPhysical);
-  memset((void*)spiTaskMemory, 0, SHARED_MEMORY_SIZE);
 #else
   spiTaskMemory = (SharedMemory*)Malloc(SHARED_MEMORY_SIZE, "spi.cpp shared task memory");
 #endif
 
   spiTaskMemory->queueHead = spiTaskMemory->queueTail = spiTaskMemory->spiBytesQueued = 0;
-#endif
-
-#ifdef USE_DMA_TRANSFERS
-  InitDMA();
 #endif
 
   // Enable fast 8 clocks per byte transfer mode, instead of slower 9 clocks per byte.
@@ -613,8 +588,6 @@ int InitSPI()
   int rc = pthread_create(&spiThread, NULL, spi_thread, NULL); // After creating the thread, it is assumed to have ownership of the SPI bus, so no SPI chat on the main thread after this.
   if (rc != 0) FATAL_ERROR("Failed to create SPI thread!");
 #else
-  // We will be running SPI tasks continuously from the main thread, so keep SPI Transfer Active throughout the lifetime of the driver.
-  BEGIN_SPI_COMMUNICATION();
 #endif
 
 #endif

@@ -5,27 +5,7 @@
 // Configure the desired display update rate. Use 120 for max performance/minimized latency, and 60/50/30/24 etc. for regular content, or to save battery.
 #define TARGET_FRAME_RATE 60
 
-#if defined(ILI9341) || defined(ILI9340)
-#include "ili9341.h"
-#elif defined(ILI9486L)
-#include "ili9486l.h"
-#elif defined(ILI9488)
-#include "ili9488.h"
-#elif defined(ILI9486)
 #include "ili9486.h"
-#elif defined(HX8357D)
-#include "hx8357d.h"
-#elif defined(ST7735R) || defined(ST7735S) || defined(ST7789) || defined(ST7789VW)
-#include "st7735r.h"
-#elif defined(SSD1351)
-#include "ssd1351.h"
-#elif defined(MZ61581)
-#include "mz61581.h"
-#elif defined(MPI3501)
-#include "mpi3501.h"
-#else
-#error Please reconfigure CMake with your display controller directive set!
-#endif
 
 // The native display resolution is in portrait/landscape, but we want to display in the opposite landscape/portrait orientation?
 // Compare DISPLAY_NATIVE_WIDTH <= DISPLAY_NATIVE_HEIGHT in the first test to let users toggle DISPLAY_OUTPUT_LANDSCAPE directive in config.h to flip orientation on square displays with width=height
@@ -33,20 +13,8 @@
 #define DISPLAY_SHOULD_FLIP_ORIENTATION
 #endif
 
-#if defined(DISPLAY_SHOULD_FLIP_ORIENTATION) && !defined(DISPLAY_FLIP_ORIENTATION_IN_SOFTWARE)
-// Need to do orientation flip, but don't want to do it on the CPU, so pretend the display dimensions are of the flipped form,
-// and use display controller initialization sequence to do the flipping
-#define DISPLAY_WIDTH DISPLAY_NATIVE_HEIGHT
-#define DISPLAY_HEIGHT DISPLAY_NATIVE_WIDTH
-#define DISPLAY_FLIP_ORIENTATION_IN_HARDWARE
-#else
 #define DISPLAY_WIDTH DISPLAY_NATIVE_WIDTH
 #define DISPLAY_HEIGHT DISPLAY_NATIVE_HEIGHT
-#endif
-
-#if !defined(DISPLAY_SHOULD_FLIP_ORIENTATION) && defined(DISPLAY_FLIP_ORIENTATION_IN_SOFTWARE)
-#undef DISPLAY_FLIP_ORIENTATION_IN_SOFTWARE
-#endif
 
 #ifndef DISPLAY_NATIVE_COVERED_LEFT_SIDE
 #define DISPLAY_NATIVE_COVERED_LEFT_SIDE 0
@@ -106,16 +74,3 @@ void TurnDisplayOn(void);
 void TurnDisplayOff(void);
 
 void DeinitSPIDisplay(void);
-
-#if !defined(SPI_BUS_CLOCK_DIVISOR)
-#error Please define -DSPI_BUS_CLOCK_DIVISOR=<some even number> on the CMake command line! This parameter along with core_freq=xxx in /boot/config.txt defines the SPI display speed. (spi speed = core_freq / SPI_BUS_CLOCK_DIVISOR)
-#endif
-
-#if !defined(GPIO_TFT_DATA_CONTROL) && !defined(SPI_3WIRE_PROTOCOL)
-#error Please reconfigure CMake with -DGPIO_TFT_DATA_CONTROL=<int> specifying which pin your display is using for the Data/Control line!
-#endif
-
-#if defined(SPI_3WIRE_PROTOCOL) && !defined(SPI_3WIRE_DATA_COMMAND_FRAMING_BITS)
-// 3-wire SPI displays use 1 bit of D/C framing (unless otherwise specified. E.g. KeDei uses 16 bit instead)
-#define SPI_3WIRE_DATA_COMMAND_FRAMING_BITS 1
-#endif

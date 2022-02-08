@@ -8,7 +8,6 @@
 
 #include "display.h"
 #include "tick.h"
-#include "dma.h"
 #include "display.h"
 
 #define BCM2835_GPIO_BASE                    0x200000   // Address to GPIO register file
