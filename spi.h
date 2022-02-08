@@ -101,28 +101,12 @@ extern volatile SPIRegisterFile *spi;
 typedef struct __attribute__((packed)) SPITask
 {
   uint32_t size; // Size, including both 8-bit and 9-bit tasks
-#ifdef SPI_3WIRE_PROTOCOL
-  uint32_t sizeExpandedTaskWithPadding; // Size of the expanded 9-bit/32-bit task. The expanded task starts at address spiTask->data + spiTask->size - spiTask->sizeExpandedTaskWithPadding;
-#endif
-#ifdef SPI_32BIT_COMMANDS
-  uint32_t cmd;
-#else
   uint8_t cmd;
-#endif
-  uint32_t dmaSpiHeader;
   uint8_t data[]; // Contains both 8-bit and 9-bit tasks back to back, 8-bit first, then 9-bit.
 
-#ifdef SPI_3WIRE_PROTOCOL
-  inline uint8_t *PayloadStart() { return data + (size - sizeExpandedTaskWithPadding); }
-  inline uint8_t *PayloadEnd() { return data + (size - SPI_9BIT_TASK_PADDING_BYTES); }
-  inline uint32_t PayloadSize() const { return sizeExpandedTaskWithPadding - SPI_9BIT_TASK_PADDING_BYTES; }
-  inline uint32_t *DmaSpiHeaderAddress() { return (uint32_t*)(PayloadStart()-4); }
-#else
   inline uint8_t *PayloadStart() { return data; }
   inline uint8_t *PayloadEnd() { return data + size; }
   inline uint32_t PayloadSize() const { return size; }
-  inline uint32_t *DmaSpiHeaderAddress() { return &dmaSpiHeader; }
-#endif
 
 } SPITask;
 

@@ -14,8 +14,8 @@ void ClearScreen()
     SPITask *clearLine = AllocTask(DISPLAY_WIDTH*SPI_BYTESPERPIXEL);
     clearLine->cmd = DISPLAY_WRITE_PIXELS;
 
-      for(int i = 0; i < DISPLAY_WIDTH; ++i)
-          clearLine->data[i] = 10 * y + i;
+  for(int i = 0; i < DISPLAY_WIDTH; ++i)
+      clearLine->data[i] = tick() * y + i;
 
     memset(clearLine->data, 0, clearLine->size);
     CommitTask(clearLine);
@@ -28,6 +28,7 @@ void ClearScreen()
 
 void ClearScreen2()
 {
+
   for(int y = 0; y < DISPLAY_HEIGHT; ++y)
   {
     SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH-1) >> 8, 0, (DISPLAY_WIDTH-1) & 0xFF);
@@ -36,8 +37,8 @@ void ClearScreen2()
     SPITask *clearLine = AllocTask(DISPLAY_WIDTH*SPI_BYTESPERPIXEL);
     clearLine->cmd = DISPLAY_WRITE_PIXELS;
 
-      for(int i = 0; i < DISPLAY_WIDTH; ++i)
-          clearLine->data[i] = 20 * y + i * 5;
+    for(int i = 0; i < DISPLAY_WIDTH; ++i)
+      clearLine->data[i] = tick() * y + i;
 
     memset(clearLine->data, 0, clearLine->size);
     CommitTask(clearLine);
