@@ -40,22 +40,11 @@
 // #define USE_GPU_VSYNC
 
 // Always enable GPU VSync on the Pi Zero. Even though it is suboptimal and can cause stuttering, it saves battery.
-#if defined(SINGLE_CORE_BOARD)
+
+#define SINGLE_CORE_BOARD
 
 #if !defined(USE_GPU_VSYNC)
 #define USE_GPU_VSYNC
-#endif
-
-#else // Multicore Pi boards (Pi 2, 3)
-
-// If defined, communication with the SPI bus is handled with a dedicated thread. On the Pi Zero, this does
-// not gain much, since it only has one hardware thread.
-#define USE_SPI_THREAD
-
-// If USE_GPU_VSYNC is defined, then enabling this causes new frames to be snapshot more often than at
-// TARGET_FRAME_RATE interval to try to keep up smoother 60fps instead of stuttering. Consumes more CPU.
-#define SELF_SYNCHRONIZE_TO_GPU_VSYNC_PRODUCED_NEW_FRAMES
-
 #endif
 
 // If enabled, the source video frame is not scaled to fit to the screen, but instead if the source frame
