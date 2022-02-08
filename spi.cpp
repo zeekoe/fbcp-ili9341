@@ -103,22 +103,6 @@ void RunSPITask(SPITask *task) {
 
 SharedMemory *spiTaskMemory = 0;
 
-SPITask *GetTask() // Returns the first task in the queue, called in worker thread
-{
-    uint32_t head = spiTaskMemory->queueHead;
-    uint32_t tail = spiTaskMemory->queueTail;
-    if (head == tail) return 0;
-    SPITask *task = (SPITask *) (spiTaskMemory->buffer + head);
-    if (task->cmd == 0) // Wrapped around?
-    {
-        spiTaskMemory->queueHead = 0;
-        __sync_synchronize();
-        if (tail == 0) return 0;
-        task = (SPITask *) spiTaskMemory->buffer;
-    }
-    return task;
-}
-
 void DoneTask(SPITask *task) // Frees the first SPI task from the queue, called in worker thread
 {
     __atomic_fetch_sub(&spiTaskMemory->spiBytesQueued, task->PayloadSize() + 1, __ATOMIC_RELAXED);
