@@ -111,7 +111,7 @@ void TurnDisplayOn()
 
 void DeinitSPIDisplay()
 {
-  ClearScreen2();
+    RandomizeScreen();
   TurnDisplayOff();
 }
 

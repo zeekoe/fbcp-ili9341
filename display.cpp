@@ -13,11 +13,7 @@ void ClearScreen()
 
     SPITask *clearLine = AllocTask(DISPLAY_WIDTH*SPI_BYTESPERPIXEL);
     clearLine->cmd = DISPLAY_WRITE_PIXELS;
-
-  for(int i = 0; i < DISPLAY_WIDTH; ++i)
-      clearLine->data[i] = tick() * y + i;
-
-//    memset(clearLine->data, 0, clearLine->size);
+    memset(clearLine->data, 0, clearLine->size);
     CommitTask(clearLine);
     RunSPITask(clearLine);
     DoneTask(clearLine);
@@ -26,7 +22,7 @@ void ClearScreen()
   SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 0, 0, 0, 0, 0, (DISPLAY_HEIGHT-1) >> 8, 0, (DISPLAY_HEIGHT-1) & 0xFF);
 }
 
-void ClearScreen2()
+void RandomizeScreen()
 {
 
   for(int y = 0; y < DISPLAY_HEIGHT; ++y)
