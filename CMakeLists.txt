@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.18)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
@@ -20,25 +20,13 @@ STRING(REGEX MATCH "Revision[\t ]*:[\t ]*([0-9a-f]+)" BOARD_REVISION ${CPU_INFO}
 set(BOARD_REVISION "${CMAKE_MATCH_1}")
 message(STATUS "Board revision: ${CMAKE_MATCH_1}")
 
-set(DEFAULT_TO_SINGLE_CORE_BOARD OFF)
 set(DEFAULT_TO_ARMV6Z OFF)
-set(DEFAULT_TO_ARMV7A OFF)
-set(DEFAULT_TO_ARMV8A OFF)
 
-# http://ozzmaker.com/check-raspberry-software-hardware-version-command-line/
-if (BOARD_REVISION MATCHES "(0002)|(0003)|(0004)|(0005)|(0006)|(0007)|(0008)|(0009)" OR BOARD_REVISION MATCHES "(000d)|(000e)|(000f)|(0010)|(0011)|(0012)" OR BOARD_REVISION MATCHES "(900092)|(900093)|(9000c1)")
-	message(STATUS "Detected this Pi to be one of: Pi A, A+, B rev. 1, B rev. 2, B+, CM1, Zero or Zero W, with single hardware core and ARMv6Z instruction set CPU.")
-	set(DEFAULT_TO_SINGLE_CORE_BOARD ON)
-	set(DEFAULT_TO_ARMV6Z ON)
-elseif(BOARD_REVISION MATCHES "(a01041)|(a21041)")
-	message(STATUS "Detected this board to be a Pi 2 Model B < rev 1.2 with ARMv7-A instruction set CPU.")
-	set(DEFAULT_TO_ARMV7A ON)
-elseif(BOARD_REVISION MATCHES "(a02082)|(a22082)|(a020d3)|(9020e0)|(a03111)|(b03111)|(b03140)|(c03111)")
-	message(STATUS "Detected this Pi to be one of: Pi 2B rev. 1.2, 3B, 3B+, 3A+, CM3, CM3 lite, CM4 or 4B(1GB,2GB,4GB RAM), with 4 hardware cores and ARMv8-A instruction set CPU.")
-	set(DEFAULT_TO_ARMV8A ON)
-else()
-	message(WARNING "The board revision of this hardware is not known. Please add detection to this board in CMakeLists.txt. (proceeding to compile against a generic multicore CPU)")
-endif()
+set(DEFAULT_TO_SINGLE_CORE_BOARD ON)
+set(DEFAULT_TO_ARMV6Z ON)
+set(WAVESHARE35B_ILI9486 ON)
+set(USE_DMA_TRANSFERS OFF)
+
 
 option(SINGLE_CORE_BOARD "Target a Raspberry Pi with only one hardware core (Pi Zero)" ${DEFAULT_TO_SINGLE_CORE_BOARD})
 if (SINGLE_CORE_BOARD)
@@ -128,7 +116,7 @@ if (STATISTICS GREATER 0)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSTATISTICS")
 endif()
 
-set(SPI_BUS_CLOCK_DIVISOR 0 CACHE STRING "Specify the SPI0 CDIV register value that defines the SPI0 bus speed (No default value, try a safe setting, e.g. -DSPI_BUS_CLOCK_DIVISOR=40 first")
+set(SPI_BUS_CLOCK_DIVISOR 40)
 if (SPI_BUS_CLOCK_DIVISOR)
 	message(STATUS "SPI_BUS_CLOCK_DIVISOR set to ${SPI_BUS_CLOCK_DIVISOR}. Try setting this to a higher value (must be an even number) if this causes problems. Display update speed = core_freq/divisor. (on Pi3B, by default core_freq=400). A safe starting default value may be -DSPI_BUS_CLOCK_DIVISOR=40")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSPI_BUS_CLOCK_DIVISOR=${SPI_BUS_CLOCK_DIVISOR}")
