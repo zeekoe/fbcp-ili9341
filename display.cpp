@@ -17,7 +17,7 @@ void ClearScreen()
   for(int i = 0; i < DISPLAY_WIDTH; ++i)
       clearLine->data[i] = tick() * y + i;
 
-    memset(clearLine->data, 0, clearLine->size);
+//    memset(clearLine->data, 0, clearLine->size);
     CommitTask(clearLine);
     RunSPITask(clearLine);
     DoneTask(clearLine);
@@ -40,7 +40,7 @@ void ClearScreen2()
     for(int i = 0; i < DISPLAY_WIDTH; ++i)
       clearLine->data[i] = tick() * y + i;
 
-    memset(clearLine->data, 0, clearLine->size);
+//    memset(clearLine->data, 0, clearLine->size);
     CommitTask(clearLine);
     RunSPITask(clearLine);
     DoneTask(clearLine);
