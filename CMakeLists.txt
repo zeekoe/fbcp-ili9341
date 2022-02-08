@@ -131,6 +131,7 @@ if (STATISTICS GREATER 0)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSTATISTICS")
 endif()
 
+set(SPI_BUS_CLOCK_DIVISOR 0 CACHE STRING "Specify the SPI0 CDIV register value that defines the SPI0 bus speed (No default value, try a safe setting, e.g. -DSPI_BUS_CLOCK_DIVISOR=40 first")
 if (SPI_BUS_CLOCK_DIVISOR)
 	message(STATUS "SPI_BUS_CLOCK_DIVISOR set to ${SPI_BUS_CLOCK_DIVISOR}. Try setting this to a higher value (must be an even number) if this causes problems. Display update speed = core_freq/divisor. (on Pi3B, by default core_freq=400). A safe starting default value may be -DSPI_BUS_CLOCK_DIVISOR=40")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSPI_BUS_CLOCK_DIVISOR=${SPI_BUS_CLOCK_DIVISOR}")
