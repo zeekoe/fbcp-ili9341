@@ -24,7 +24,6 @@ void ClearScreen()
 
 void RandomizeScreen()
 {
-
   for(int y = 0; y < DISPLAY_HEIGHT; ++y)
   {
     SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH-1) >> 8, 0, (DISPLAY_WIDTH-1) & 0xFF);
