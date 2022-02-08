@@ -27,7 +27,6 @@
 #include "../display.h"
 #include "../spi.h"
 #include "../util.h"
-#include "../dma.h"
 
 static inline uint64_t tick(void)
 {
@@ -37,7 +36,6 @@ static inline uint64_t tick(void)
 
 // TODO: Super-dirty temp, factor this into kbuild Makefile.
 #include "../spi.cpp"
-#include "../dma.cpp"
 
 volatile SPITask *currentTask = 0;
 volatile uint8_t *taskNextByte = 0;

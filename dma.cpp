@@ -8,7 +8,6 @@
 #endif
 
 #include "config.h"
-#include "dma.h"
 #include "spi.h"
 #include "gpu.h"
 #include "util.h"

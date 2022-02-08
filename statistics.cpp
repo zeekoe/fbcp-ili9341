@@ -16,7 +16,6 @@
 #include "util.h"
 #include "mailbox.h"
 #include "mem_alloc.h"
-#include "dma.h"
 
 volatile uint64_t timeWastedPollingGPU = 0;
 volatile float statsSpiBusSpeed = 0;

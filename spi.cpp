@@ -10,7 +10,6 @@
 #include "config.h"
 #include "spi.h"
 #include "util.h"
-#include "dma.h"
 #include "mailbox.h"
 #include "mem_alloc.h"
 
