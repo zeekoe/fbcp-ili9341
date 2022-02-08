@@ -92,6 +92,7 @@
 #endif
 
 void ClearScreen(void);
+void ClearScreen2(void);
 
 void TurnBacklightOn(void);
 void TurnBacklightOff(void);
