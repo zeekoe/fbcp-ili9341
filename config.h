@@ -1,9 +1,5 @@
 #pragma once
 
-#define SPI_BUS_CLOCK_DIVISOR 30
-#define WAVESHARE35B_ILI9486 ON
-#define USE_DMA_TRANSFERS OFF
-
 // Build options: Uncomment any of these, or set at the command line to configure:
 
 // If defined, renders a performance overlay on top of the screen. This option is passed from CMake
