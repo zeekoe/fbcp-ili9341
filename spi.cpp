@@ -206,19 +206,7 @@ void *spi_thread(void *unused)
 
 int InitSPI()
 {
-#ifdef KERNEL_MODULE
 
-#define BCM2835_PERI_BASE               0x3F000000
-#define BCM2835_GPIO_BASE               0x200000
-#define BCM2835_SPI0_BASE               0x204000
-  printk("ioremapping %p\n", (void*)(BCM2835_PERI_BASE+BCM2835_GPIO_BASE));
-  void *bcm2835 = ioremap(BCM2835_PERI_BASE+BCM2835_GPIO_BASE, 32768);
-  printk("Got bcm address %p\n", bcm2835);
-  if (!bcm2835) FATAL_ERROR("Failed to map BCM2835 address!");
-  spi = (volatile SPIRegisterFile*)((uintptr_t)bcm2835 + BCM2835_SPI0_BASE - BCM2835_GPIO_BASE);
-  gpio = (volatile GPIORegisterFile*)((uintptr_t)bcm2835);
-
-#else // Userland version
   // Memory map GPIO and SPI peripherals for direct access
   mem_fd = open("/dev/mem", O_RDWR|O_SYNC);
   if (mem_fd < 0) FATAL_ERROR("can't open /dev/mem (run as sudo)");
@@ -229,7 +217,6 @@ int InitSPI()
   gpio = (volatile GPIORegisterFile*)((uintptr_t)bcm2835 + BCM2835_GPIO_BASE);
   systemTimerRegister = (volatile uint64_t*)((uintptr_t)bcm2835 + BCM2835_TIMER_BASE + 0x04); // Generates an unaligned 64-bit pointer, but seems to be fine.
   // TODO: On graceful shutdown, (ctrl-c signal?) close(mem_fd)
-#endif
 
 
   // Estimate how many microseconds transferring a single byte over the SPI bus takes?
@@ -241,23 +228,15 @@ int InitSPI()
 #endif
   // The Pirate Audio hat ST7789 based display has Data/Control on the MISO pin, so only initialize the pin as MISO if the
   // Data/Control pin does not use it.
-#if !defined(GPIO_TFT_DATA_CONTROL) || GPIO_TFT_DATA_CONTROL != GPIO_SPI0_MISO
   SET_GPIO_MODE(GPIO_SPI0_MISO, 0x04);
-#endif
   SET_GPIO_MODE(GPIO_SPI0_MOSI, 0x04);
   SET_GPIO_MODE(GPIO_SPI0_CLK, 0x04);
 
-#ifdef DISPLAY_NEEDS_CHIP_SELECT_SIGNAL
-#else
   // Set the SPI 0 pin explicitly to output, and enable chip select on the line by setting it to low.
   // fbcp-ili9341 assumes exclusive access to the SPI0 bus, and exclusive presence of only one device on the bus,
   // which is (permanently) activated here.
   SET_GPIO_MODE(GPIO_SPI0_CE0, 0x01);
   CLEAR_GPIO(GPIO_SPI0_CE0);
-#ifdef DISPLAY_USES_CS1
-  SET_GPIO_MODE(GPIO_SPI0_CE1, 0x01);
-#endif
-#endif
 
   spi->cs = BCM2835_SPI0_CS_CLEAR | DISPLAY_SPI_DRIVE_SETTINGS; // Initialize the Control and Status register to defaults: CS=0 (Chip Select), CPHA=0 (Clock Phase), CPOL=0 (Clock Polarity), CSPOL=0 (Chip Select Polarity), TA=0 (Transfer not active), and reset TX and RX queues.
   spi->clk = SPI_BUS_CLOCK_DIVISOR; // Clock Divider determines SPI bus speed, resulting speed=256MHz/clk
