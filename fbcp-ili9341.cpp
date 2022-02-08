@@ -59,10 +59,6 @@ void ProgramInterruptHandler(int signal)
     __atomic_fetch_add(&spiTaskMemory->queueTail, 1, __ATOMIC_SEQ_CST);
     syscall(SYS_futex, &spiTaskMemory->queueTail, FUTEX_WAKE, 1, 0, 0, 0); // Wake the SPI thread if it was sleeping to get new tasks
   }
-
-  // Wake the main thread if it was sleeping for a new frame so that it can gracefully quit
-  __atomic_fetch_add(&numNewGpuFrames, 1, __ATOMIC_SEQ_CST);
-  syscall(SYS_futex, &numNewGpuFrames, FUTEX_WAKE, 1, 0, 0, 0);
 }
 
 
