@@ -70,14 +70,33 @@ void InitILI9486() {
         SPI_TRANSFER(0x13/*Normal Display Mode ON*/);
 
 
-        ClearScreen();
+        for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
+            SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
+            SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 0, (uint8_t) (y >> 8), 0, (uint8_t) (y & 0xFF), 0, (DISPLAY_HEIGHT - 1) >> 8,
+                         0, (DISPLAY_HEIGHT - 1) & 0xFF);
+
+            SPITask *clearLine = AllocTask(DISPLAY_WIDTH * SPI_BYTESPERPIXEL);
+            clearLine->cmd = DISPLAY_WRITE_PIXELS;
+
+            for (int i = 0; i < DISPLAY_WIDTH; ++i) {
+                SPI_TRANSFER(DISPLAY_WRITE_PIXELS, (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i),
+                             (char) (tick() * y + i)
+                             );
+            }
+        }
+        SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
+        SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 0, 0, 0, 0, 0, (DISPLAY_HEIGHT - 1) >> 8, 0, (DISPLAY_HEIGHT - 1) & 0xFF);
     }
     END_SPI_COMMUNICATION();
-
-    // And speed up to the desired operation speed finally after init is done.
-    usleep(10 *
-           1000); // Delay a bit before restoring CLK, or otherwise this has been observed to cause the display not init if done back to back after the clear operation above.
-    spi->clk = SPI_BUS_CLOCK_DIVISOR;
 }
 
 void TurnBacklightOff() {
@@ -112,8 +131,8 @@ void TurnDisplayOn() {
 }
 
 void DeinitSPIDisplay() {
-    RandomizeScreen();
-    TurnDisplayOff();
+//    RandomizeScreen();
+//    TurnDisplayOff();
 }
 
 #endif

@@ -87,10 +87,11 @@ int main() {
     signal(SIGTERM, ProgramInterruptHandler);
 
     InitSPI();
-    for (int z = 0; z < 10; z++) {
-        usleep(500 * 1000);
-        drawScreen(z);
-    }
+    usleep(3000 * 1000);
+//    for (int z = 0; z < 5; z++) {
+//        usleep(200 * 1000);
+//        drawScreen(z);
+//    }
     DeinitSPI();
     printf("Quit.\n");
 }
