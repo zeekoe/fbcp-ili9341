@@ -161,7 +161,8 @@ int InitSPI() {
     // We will be running SPI tasks continuously from the main thread, so keep SPI Transfer Active throughout the lifetime of the driver.
     BEGIN_SPI_COMMUNICATION();
 
-    LOG("InitSPI done");
+    DeinitSPI();
+
     return 0;
 }
 
