@@ -69,32 +69,31 @@ void InitILI9486() {
         SPI_TRANSFER(0x38/*Idle Mode OFF*/);
         SPI_TRANSFER(0x13/*Normal Display Mode ON*/);
 
-
         for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
-            SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
-            SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 0, (uint8_t) (y >> 8), 0, (uint8_t) (y & 0xFF), 0, (DISPLAY_HEIGHT - 1) >> 8,
+            SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 8, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
+            SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 8, 0, (char) (y >> 8), 0, (char) (y & 0xFF), 0,
+                         (DISPLAY_HEIGHT - 1) >> 8,
                          0, (DISPLAY_HEIGHT - 1) & 0xFF);
 
-            SPITask *clearLine = AllocTask(DISPLAY_WIDTH * SPI_BYTESPERPIXEL);
-            clearLine->cmd = DISPLAY_WRITE_PIXELS;
+            char mult = 20;
 
             for (int i = 0; i < DISPLAY_WIDTH; ++i) {
-                SPI_TRANSFER(DISPLAY_WRITE_PIXELS, (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i),
-                             (char) (tick() * y + i)
-                             );
+                SPI_TRANSFER(DISPLAY_WRITE_PIXELS, 11, (char) (tick() * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i),
+                             (char) (mult * y + i)
+                );
             }
         }
-        SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
-        SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 0, 0, 0, 0, 0, (DISPLAY_HEIGHT - 1) >> 8, 0, (DISPLAY_HEIGHT - 1) & 0xFF);
+        SPI_TRANSFER(DISPLAY_SET_CURSOR_X, 8, 0, 0, 0, 0, 0, (DISPLAY_WIDTH - 1) >> 8, 0, (DISPLAY_WIDTH - 1) & 0xFF);
+        SPI_TRANSFER(DISPLAY_SET_CURSOR_Y, 8, 0, 0, 0, 0, 0, (DISPLAY_HEIGHT - 1) >> 8, 0, (DISPLAY_HEIGHT - 1) & 0xFF);
     }
     END_SPI_COMMUNICATION();
 }
